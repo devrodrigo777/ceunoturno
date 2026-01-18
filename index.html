@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Céu Noturno - Eternize seu Astro no Céu Digital</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #020617;
+            font-family: 'Inter', sans-serif;
+            touch-action: none;
+        }
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+        @keyframes sky-drift {
+            from { background-position: 0 0; }
+            to { background-position: 1000px 1000px; }
+        }
+        @keyframes modal-glow {
+            0%, 100% { box-shadow: 0 0 30px rgba(255, 255, 255, 0.2); transform: scale(1); }
+            50% { box-shadow: 0 0 60px rgba(255, 255, 255, 0.5); transform: scale(1.05); }
+        }
+        @keyframes fadeInScale {
+        from {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+        }
+
+        .animate-entrance {
+        animation: fadeInScale 0.8s forwards ease-out;
+        }
+        .twinkle-anim {
+            animation: twinkle var(--duration) ease-in-out infinite;
+        }
+        .modal-star-anim {
+            animation: modal-glow 3s ease-in-out infinite;
+        }
+        .sky-canvas {
+            will-change: transform;
+            cursor: grab;
+            transform-origin: 0 0;
+        }
+        .sky-canvas:active {
+            cursor: grabbing;
+        }
+        .star-overlay {
+            background-image: url('https://www.transparenttextures.com/patterns/stardust.png');
+            background-repeat: repeat;
+            opacity: 0.8; /* Aumentado de 0.5 para 0.8 */
+            animation: sky-drift 300s linear infinite;
+        }
+        .sky-gradient-v2 {
+            background: radial-gradient(circle at 50% 50%, #0c0c24 0%, #020617 100%);
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+    <div id="root"></div>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
