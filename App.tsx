@@ -10,9 +10,9 @@ const SKY_W = 4000;
 const SKY_H = 3000;
 const FRICTION = 0.90;
 const LERP = 0.05;
-const MIN_Z = 0.5;
-const MAX_Z = 1.6;
-const DRAG_SENSITIVITY = 0.3; // Fator para controlar a sensibilidade do arrasto
+const MIN_Z = 0.95;
+const MAX_Z = 1.5;
+const DRAG_SENSITIVITY = 1; // Fator para controlar a sensibilidade do arrasto
 const MIN_ASTRO_DISTANCE = 140; // Distância mínima de segurança entre astros
 
 const App: React.FC = () => {
@@ -21,6 +21,70 @@ const App: React.FC = () => {
   const [selectedAstro, setSelectedAstro] = useState<Astro | null>(null);
   const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
   const [showIntro, setShowIntro] = useState(false);
+
+  // Click position marker
+  const [clickMarker, setClickMarker] = useState<{x: number, y: number} | null>(null);
+  const touchStartPos = useRef({ x: 0, y: 0 });
+
+  const handleMapClick = (clientX: number, clientY: number) => {
+
+      if(Math.abs(velocity.current.x) < 0.5 && Math.abs(velocity.current.y) < 0.5)
+      {
+        // Converte pixel da tela para coordenada real do Canvas
+        const canvasX = (clientX - offset.x) / zoom;
+        const canvasY = (clientY - offset.y) / zoom;
+
+        let zona = null;
+
+        // Verificamos primeiro as extremidades verticais (Zênite e Nadir)
+        if (canvasY < 700) {
+          zona = AstroPosition.ZENITH;
+        } else if (canvasY > 2400) {
+          zona = AstroPosition.NADIR;
+        } else {
+          // Se estiver no meio vertical, verificamos as laterais (Leste/Oeste)
+          if (canvasX < 1300) {
+            zona = AstroPosition.HORIZON_LEFT;
+          } else if (canvasX > 2700) {
+            zona = AstroPosition.HORIZON_RIGHT;
+          } else {
+            zona = AstroPosition.HORIZON;
+          }
+        }
+
+        // 3. Output no Console
+        console.log(`📍 Clique detectado!`);
+        console.log(`Coordenadas: X: ${Math.round(canvasX)} | Y: ${Math.round(canvasY)}`);
+        console.log(`Zona Identificada: ${zona}`);
+        console.log('---------------------------');
+
+        // Ativa o marcador visual
+        setClickMarker({ x: canvasX, y: canvasY });
+
+        // Remove o brilho após 2 segundos para não poluir a tela
+        setTimeout(() => setClickMarker(null), 2000);
+
+        // Aqui você pode decidir se abre o modal de compra automaticamente
+        // setIsPurchaseModalOpen(true); 
+      }
+  };
+
+  const handleEnd = (clientX: number, clientY: number) => {
+    setIsDragging(false);
+    pinchDist.current = null;
+
+    // Calcula a distância entre onde começou e onde terminou
+    const distMoved = Math.hypot(
+      clientX - touchStartPos.current.x,
+      clientY - touchStartPos.current.y
+    );
+
+    // Se moveu menos de 10 pixels, consideramos um "Clique Puro"
+    // 10px é uma margem de erro comum para dedos humanos (micro-tremores)
+    if (distMoved < 10) {
+      handleMapClick(clientX, clientY);
+    }
+  };
 
   // Loading State
   const [isLoading, setIsLoading] = useState(true);
@@ -87,7 +151,7 @@ const App: React.FC = () => {
 
     setTimeout(() => {
       setShowIntro(false);
-    }, 1000);
+    }, 1500);
 
     if (element.requestFullscreen) {
       element.requestFullscreen().catch(err => console.log(err));
@@ -98,12 +162,12 @@ const App: React.FC = () => {
   
   // Main Loop for Smooth Transitions
   const animate = useCallback(() => {
-    if (!isDragging) {
+    // if (!isDragging) {
       velocity.current.x *= FRICTION;
       velocity.current.y *= FRICTION;
       targetOff.current.x += velocity.current.x;
       targetOff.current.y += velocity.current.y;
-    }
+    // }
 
     currentZoom.current += (targetZoom.current - currentZoom.current) * LERP;
     const sW = SKY_W * currentZoom.current;
@@ -121,12 +185,19 @@ const App: React.FC = () => {
 
     setOffset({ x: currentOff.current.x, y: currentOff.current.y });
     setZoom(currentZoom.current);
-    requestAnimationFrame(animate);
+    // requestAnimationFrame(animate);
   }, [isDragging]);
 
   useEffect(() => {
-    const id = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(id);
+    let frameId: number;
+
+    const loop = () => {
+      animate();
+      frameId = requestAnimationFrame(loop);
+    };
+
+    frameId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(frameId); // Isso mata o loop antigo antes de criar um novo
   }, [animate]);
 
   const handleZoom = (delta: number, cx: number, cy: number) => {
@@ -152,6 +223,9 @@ const App: React.FC = () => {
     setIsDragging(true);
     velocity.current = { x: 0, y: 0 };
     lastMousePos.current = { x: cx, y: cy };
+
+    // Salva o ponto inicial para comparação no final
+    touchStartPos.current = { x: cx, y: cy };
   };
 
   const onMove = (cx: number, cy: number) => {
@@ -192,7 +266,7 @@ const App: React.FC = () => {
         case AstroPosition.ZENITH: x = 1200 + Math.random() * 600; y = 700 + Math.random() * 600; break;
         case AstroPosition.HORIZON_LEFT: x = 200 + Math.random() * 600; y = 800 + Math.random() * 800; break;
         case AstroPosition.HORIZON_RIGHT: x = 2200 + Math.random() * 600; y = 800 + Math.random() * 800; break;
-        case AstroPosition.CELESTIAL_POLE: x = 500 + Math.random() * 2000; y = 150 + Math.random() * 300; break;
+        case AstroPosition.HORIZON: x = 500 + Math.random() * 2000; y = 150 + Math.random() * 300; break;
         case AstroPosition.NADIR: x = 500 + Math.random() * 2000; y = 1600 + Math.random() * 300; break;
       }
       
@@ -237,27 +311,43 @@ const App: React.FC = () => {
           <div className="animate-entrance relative w-dvw h-dvh sky-gradient-v2 overflow-hidden select-none"
             onMouseDown={e => onStart(e.clientX, e.clientY, e.target as HTMLElement)}
             onMouseMove={e => onMove(e.clientX, e.clientY)}
-            onMouseUp={() => {setIsDragging(false); pinchDist.current = null;}}
+            onMouseUp={() => {setIsDragging(false); pinchDist.current = null; handleEnd(lastMousePos.current.x, lastMousePos.current.y);}}
             onTouchStart={e => onStart(e.touches[0].clientX, e.touches[0].clientY, e.target as HTMLElement)}
             onTouchMove={onTouch}
-            onTouchEnd={() => {setIsDragging(false); pinchDist.current = null;}}>
+            onTouchEnd={() => {setIsDragging(false); pinchDist.current = null; handleEnd(lastMousePos.current.x, lastMousePos.current.y);}}>
             
             <div className="absolute sky-canvas star-overlay" style={{ transform: `translate3d(${offset.x}px, ${offset.y}px, 0) scale(${zoom})`, width: SKY_W, height: SKY_H }}>
+              {/* Efeito de Blink ao clicar */}
+              {clickMarker && (
+                <div 
+                  className="absolute pointer-events-none z-50"
+                  style={{ 
+                    left: clickMarker.x, 
+                    top: clickMarker.y,
+                    transform: 'translate(-50%, -50%)' 
+                  }}
+                >
+                  {/* Círculo expansivo (Blink) */}
+                  <div className="w-20 h-20 rounded-full border-2 border-yellow-400/50 animate-ping" />
+                  {/* Ponto central */}
+                  <div className="absolute inset-0 m-auto w-2 h-2 bg-white rounded-full shadow-[0_0_15px_white]" />
+                </div>
+              )}
               {/* Geographic Badges Inside Canvas */}
-              <div className="absolute top-[8%] left-1/2 -translate-x-1/2 opacity-50 pointer-events-none">
-                <span className="px-5 py-2 rounded-full border border-white/10 bg-black/30 text-[10px] text-white font-black tracking-[0.4em] uppercase">Polo Celeste</span>
+              <div className="absolute top-[40%] left-1/2 -translate-x-1/2 opacity-50 pointer-events-none">
+                <span className="px-5 py-2 rounded-full border border-white/10 bg-black/30 text-[10px] text-white font-black tracking-[0.4em] uppercase">Horizonte</span>
               </div>
-              <div className="absolute top-[40%] left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-50 pointer-events-none">
+              <div className="absolute top-[8%] left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-50 pointer-events-none">
                 <span className="px-5 py-2 rounded-full border border-white/10 bg-black/30 text-[10px] text-white font-black tracking-[0.4em] uppercase">Zênite</span>
               </div>
-              <div className="absolute bottom-[8%] left-1/2 -translate-x-1/2 opacity-50 pointer-events-none">
+              <div className="absolute bottom-[12%] left-1/2 -translate-x-1/2 opacity-50 pointer-events-none">
                 <span className="px-5 py-2 rounded-full border border-white/10 bg-black/30 text-[10px] text-white font-black tracking-[0.4em] uppercase">Nadir</span>
               </div>
               <div className="absolute top-1/2 left-[5%] -translate-y-1/2 -rotate-90 opacity-50 pointer-events-none">
-                <span className="px-5 py-2 rounded-full border border-white/10 bg-black/30 text-[10px] text-white font-black tracking-[0.4em] uppercase">Leste</span>
+                <span className="px-5 py-2 rounded-full border border-white/10 bg-black/30 text-[10px] text-white font-black tracking-[0.4em] uppercase">Horizonte Leste</span>
               </div>
               <div className="absolute top-1/2 right-[5%] -translate-y-1/2 rotate-90 opacity-50 pointer-events-none">
-                <span className="px-5 py-2 rounded-full border border-white/10 bg-black/30 text-[10px] text-white font-black tracking-[0.4em] uppercase">Oeste</span>
+                <span className="px-5 py-2 rounded-full border border-white/10 bg-black/30 text-[10px] text-white font-black tracking-[0.4em] uppercase">Horizonte Oeste</span>
               </div>
 
               {astros.map(a => <AstroItem key={a.id} astro={a} onClick={setSelectedAstro} />)}
@@ -280,18 +370,15 @@ const App: React.FC = () => {
               </button>
             </div>
 
-            <div className="absolute bottom-11 left-1/2 -translate-x-1/2 text-center z-10 w-full px-6 pointer-events-none">
+            {/* <div className="absolute bottom-11 left-1/2 -translate-x-1/2 text-center z-10 w-full px-6 pointer-events-none">
               <p className="text-slate-400 text-[11px] font-black uppercase tracking-[0.3em] mb-4 animate-pulse">Clique em uma estrela para ver a mensagem</p>
               <button onClick={() => setIsPurchaseModalOpen(true)} className="animate-pulse pointer-events-auto bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-black px-6 py-3 rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all text-xs tracking-[0.2em] flex items-center gap-3 mx-auto">
                 <i className="fa-solid fa-star text-lg"></i> REIVINDICAR SEU ASTRO
               </button>
-            </div>
+            </div> */}
 
             {/* Minimap for Navigation */}
             <div className="fixed bottom-6 right-6 w-36 h-24 bg-black/60 border border-white/10 rounded-xl backdrop-blur-md overflow-hidden z-20 pointer-events-none shadow-2xl">
-              <div className="absolute inset-0 opacity-20 flex flex-wrap gap-1 p-1">
-                {astros.map(a => <div key={a.id} className="w-1 h-1 rounded-full" style={{backgroundColor: a.color}} />)}
-              </div>
               <div className="absolute bg-white/20 border border-white/40 rounded-sm" style={{ 
                   width: `${(window.innerWidth/(SKY_W*zoom))*100}%`, height: `${(window.innerHeight/(SKY_H*zoom))*100}%`,
                   left: `${(-offset.x/(SKY_W*zoom))*100}%`, top: `${(-offset.y/(SKY_H*zoom))*100}%` 

@@ -31,4 +31,4 @@ Este projeto foi construído com o que há de mais moderno no ecossistema Web:
 
 1. **Clone o repositório:**
    ```bash
-   git clone [https://github.com/devrodrigo777/ceunoturno.git](https://github.com/devrodrigo777/ceunoturno.git)
+   git clone [https://github.com/devrodrigo777/ceunoturno.git]

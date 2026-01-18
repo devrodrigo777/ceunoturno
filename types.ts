@@ -3,7 +3,7 @@ export enum AstroPosition {
   HORIZON_LEFT = 'Horizonte Leste',
   HORIZON_RIGHT = 'Horizonte Oeste',
   NADIR = 'Nadir',
-  CELESTIAL_POLE = 'Polo Celeste'
+  HORIZON = 'Horizonte'
 }
 
 export type AstroType = 'star' | 'planet' | 'nebula';
