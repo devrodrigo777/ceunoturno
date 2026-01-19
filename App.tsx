@@ -5,6 +5,7 @@ import AstroItem from './components/AstroItem';
 import Modal from './components/Modal';
 import FullscreenPrompt from './components/FullScreenPrompt';
 import SplashScreen from './components/SplashScreen';
+import ModalSobre from './components/ModalSobre';
 
 const SKY_W = 4000;
 const SKY_H = 3000;
@@ -13,7 +14,7 @@ const LERP = 0.05;
 const MIN_Z = 0.95;
 const MAX_Z = 1.5;
 const DRAG_SENSITIVITY = 1; // Fator para controlar a sensibilidade do arrasto
-const MIN_ASTRO_DISTANCE = 140; // Distância mínima de segurança entre astros
+const MIN_ASTRO_DISTANCE = 120; // Distância mínima de segurança entre astros
 
 const App: React.FC = () => {
   const [astros, setAstros] = useState<Astro[]>(INITIAL_ASTROS);
@@ -22,12 +23,34 @@ const App: React.FC = () => {
   const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
   const [showIntro, setShowIntro] = useState(false);
 
+  // Modal Sobre State
+  const [isModalSobreOpen, setIsModalSobreOpen] = useState(false);
+  const [modalAberto, setModalAberto] = useState(false);
+
   // Click position marker
   const [clickMarker, setClickMarker] = useState<{x: number, y: number} | null>(null);
   const touchStartPos = useRef({ x: 0, y: 0 });
+  const [pendingCoords, setPendingCoords] = useState<{x: number, y: number} | null>(null);
+  const [errorMarker, setErrorMarker] = useState<{ x: number, y: number } | null>(null);
+
+  const getStarRegion = (x: number, y: number): AstroPosition => {
+    if (y < 700) {
+      return AstroPosition.ZENITH;
+    } else if (y > 2400) {
+      return AstroPosition.NADIR;
+    } else {
+      if (x < 1300) {
+        return AstroPosition.HORIZON_LEFT;
+      } else if (x > 2700) {
+        return AstroPosition.HORIZON_RIGHT;
+      } else {
+        return AstroPosition.HORIZON;
+      }
+    }
+  };
 
   const handleMapClick = (clientX: number, clientY: number) => {
-
+      if (isPurchaseModalOpen || selectedAstro || modalAberto) return;
       if(Math.abs(velocity.current.x) < 0.5 && Math.abs(velocity.current.y) < 0.5)
       {
         // Converte pixel da tela para coordenada real do Canvas
@@ -37,20 +60,7 @@ const App: React.FC = () => {
         let zona = null;
 
         // Verificamos primeiro as extremidades verticais (Zênite e Nadir)
-        if (canvasY < 700) {
-          zona = AstroPosition.ZENITH;
-        } else if (canvasY > 2400) {
-          zona = AstroPosition.NADIR;
-        } else {
-          // Se estiver no meio vertical, verificamos as laterais (Leste/Oeste)
-          if (canvasX < 1300) {
-            zona = AstroPosition.HORIZON_LEFT;
-          } else if (canvasX > 2700) {
-            zona = AstroPosition.HORIZON_RIGHT;
-          } else {
-            zona = AstroPosition.HORIZON;
-          }
-        }
+        zona = getStarRegion(canvasX, canvasY);
 
         // 3. Output no Console
         console.log(`📍 Clique detectado!`);
@@ -66,6 +76,25 @@ const App: React.FC = () => {
 
         // Aqui você pode decidir se abre o modal de compra automaticamente
         // setIsPurchaseModalOpen(true); 
+        // Verifica se não está clicando em um astro existente
+        const isTooClose = astros.some(a => Math.hypot(a.x - canvasX, a.y - canvasY) < MIN_ASTRO_DISTANCE);
+        // console.log("Perto demais?", isTooClose);
+
+        if (isTooClose) {
+          // Feedback de erro
+          setErrorMarker({ x: canvasX, y: canvasY });
+          
+          // Remove o badge após 1.5 segundos
+          setTimeout(() => setErrorMarker(null), 1500);
+          return; // Interrompe a função aqui
+        } else {
+          setPendingCoords({ x: canvasX, y: canvasY });
+          
+          const zonaCalculada = getStarRegion(canvasX, canvasY);
+          setPos(zonaCalculada); // Isso atualiza o estado 'pos' para o preço ficar correto no modal
+
+          setIsPurchaseModalOpen(true);
+        }
       }
   };
 
@@ -269,7 +298,7 @@ const App: React.FC = () => {
         case AstroPosition.HORIZON: x = 500 + Math.random() * 2000; y = 150 + Math.random() * 300; break;
         case AstroPosition.NADIR: x = 500 + Math.random() * 2000; y = 1600 + Math.random() * 300; break;
       }
-      
+
       // Verifica se a nova posição está muito próxima de algum astro existente
       const isTooClose = astros.some(a => Math.hypot(a.x - x, a.y - y) < MIN_ASTRO_DISTANCE);
       if (!isTooClose) {
@@ -283,6 +312,9 @@ const App: React.FC = () => {
       return alert('Esta região está muito congestionada. Tente outra posição ou aguarde por um espaço.');
     }
 
+    x = pendingCoords.x;
+    y = pendingCoords.y;
+
     const newAstro: Astro = {
       id: Math.random().toString(36).substr(2, 9),
       userId: user.id, userName: user.name,
@@ -291,13 +323,47 @@ const App: React.FC = () => {
       size: type === 'nebula' ? 50 : type === 'planet' ? 24 : 12,
       x, y, coordinate: generateFictionalCoordinate(), createdAt: Date.now()
     };
-
+    
     setAstros(prev => [...prev, newAstro]);
     setUser(prev => ({ ...prev, balance: prev.balance - total }));
     setIsPurchaseModalOpen(false);
     // Focus view on new astro
     targetOff.current = { x: -(x * currentZoom.current) + window.innerWidth/2, y: -(y * currentZoom.current) + window.innerHeight/2 };
   };
+
+  const renderConstellationLines = () => {
+  const lines: React.ReactNode[] = [];
+  const MAX_CONSTELLATION_DIST = 350; // Distância máxima para formar uma linha
+
+  for (let i = 0; i < astros.length; i++) {
+    for (let j = i + 1; j < astros.length; j++) {
+      const a = astros[i];
+      const b = astros[j];
+      
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+
+      if (dist < MAX_CONSTELLATION_DIST) {
+        // Calculamos a opacidade baseada na distância (mais perto = mais forte)
+        const opacity = 1 - (dist / MAX_CONSTELLATION_DIST);
+        
+        lines.push(
+          <line
+            key={`line-${a.id}-${b.id}`}
+            x1={a.x}
+            y1={a.y}
+            x2={b.x}
+            y2={b.y}
+            stroke="white"
+            strokeWidth="0.5"
+            strokeOpacity={opacity * 0.5} // Linha bem sutil
+            style={{ pointerEvents: 'none' }}
+          />
+        );
+      }
+    }
+  }
+  return lines;
+};
 
   return (
     <>
@@ -311,12 +377,57 @@ const App: React.FC = () => {
           <div className="animate-entrance relative w-dvw h-dvh sky-gradient-v2 overflow-hidden select-none"
             onMouseDown={e => onStart(e.clientX, e.clientY, e.target as HTMLElement)}
             onMouseMove={e => onMove(e.clientX, e.clientY)}
-            onMouseUp={() => {setIsDragging(false); pinchDist.current = null; handleEnd(lastMousePos.current.x, lastMousePos.current.y);}}
+            onMouseUp={(e) => {
+              setIsDragging(false);
+              pinchDist.current = null;
+              const target = e.target as HTMLElement;
+              if (!target.closest('.modal-content') && !target.closest('button')) {
+                handleEnd(e.clientX, e.clientY);
+              }
+            }}
             onTouchStart={e => onStart(e.touches[0].clientX, e.touches[0].clientY, e.target as HTMLElement)}
             onTouchMove={onTouch}
-            onTouchEnd={() => {setIsDragging(false); pinchDist.current = null; handleEnd(lastMousePos.current.x, lastMousePos.current.y);}}>
+            onTouchEnd={(e) => {
+              setIsDragging(false);
+              pinchDist.current = null;
+              const touch = e.changedTouches[0];
+              const target = e.target as HTMLElement;
+              
+              if (!target.closest('.modal-content') && !target.closest('button')) {
+                handleEnd(touch.clientX, touch.clientY);
+              }
+            }}>
             
             <div className="absolute sky-canvas star-overlay" style={{ transform: `translate3d(${offset.x}px, ${offset.y}px, 0) scale(${zoom})`, width: SKY_W, height: SKY_H }}>
+<svg 
+    className="absolute inset-0 w-full h-full pointer-events-none" 
+    viewBox={`0 0 ${SKY_W} ${SKY_H}`}
+  >
+    {renderConstellationLines()}
+  </svg>
+              {/* Badge de Erro (Too Close) */}
+              {errorMarker && (
+                <div 
+                  className="absolute pointer-events-none z-50 flex flex-col items-center gap-2"
+                  style={{ 
+                    left: errorMarker.x, 
+                    top: errorMarker.y,
+                    transform: 'translate(-50%, -50%)' 
+                  }}
+                >
+                  {/* Círculo de pulso vermelho */}
+                  <div className="w-12 h-12 rounded-full border-2 border-red-500 animate-ping absolute" />
+                  
+                  {/* Ícone e Texto */}
+                  <div className="bg-red-600/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-red-400 shadow-xl flex items-center gap-2 animate-bounce">
+                    <i className="fa-solid fa-circle-exclamation text-white text-xs"></i>
+                    <span className="text-white font-black text-[9px] uppercase tracking-tighter whitespace-nowrap">
+                      Espaço Ocupado
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* Efeito de Blink ao clicar */}
               {clickMarker && (
                 <div 
@@ -365,8 +476,8 @@ const App: React.FC = () => {
               <div className="flex flex-col"><span className="text-[10px] text-slate-400 font-bold uppercase">Saldo</span><span className="text-sm text-yellow-400 font-black">★ {user.balance}</span></div>
             </div> */}
             <div className="absolute top-6 right-6 z-10 bg-slate-900/40 border animate-pulse border-white/10 backdrop-blur-xl p-2 pr-5 rounded-2xl flex items-center gap-3">
-              <button onClick={(e) => { e.preventDefault() }} className="text-white pointer-events-auto font-black px-3 py-1 rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all text-xs tracking-[0.2em] flex items-center gap-3 mx-auto">
-                <i className="fa-solid fa-question text-lg"></i> ENTENDA
+              <button onClick={() => setModalAberto(true) } className="text-white pointer-events-auto font-black px-3 py-1 rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all text-xs tracking-[0.2em] flex items-center gap-3 mx-auto">
+                <i className="fa-solid fa-question text-lg"></i> SOBRE
               </button>
             </div>
 
@@ -401,13 +512,56 @@ const App: React.FC = () => {
                   <label className="block text-slate-500 text-[10px] font-black uppercase mb-2">Mensagem Eterna</label>
                   <textarea value={msg} onChange={e => setMsg(e.target.value)} placeholder="O que você deseja transmitir ao firmamento?" className="w-full bg-slate-900 border border-white/10 rounded-xl p-4 text-white text-sm h-24 focus:ring-1 focus:ring-indigo-500 outline-none resize-none" />
                 </div>
+                { pendingCoords && (   
+                  <>             
                 <div className="grid grid-cols-2 gap-2">
-                  {(Object.keys(POSITION_PRICES) as AstroPosition[]).map(p => (
-                    <button key={p} onClick={() => setPos(p)} className={`p-2 rounded-lg border text-[9px] font-black uppercase flex justify-between ${pos === p ? 'border-yellow-400 text-yellow-400 bg-yellow-400/5' : 'border-white/5 text-slate-500'}`}>
-                      <span>{p}</span><span>★{POSITION_PRICES[p]}</span>
-                    </button>
-                  ))}
+                  {/* Exibir a coordenada selecionada usando o pendingCoords e informando qual região estelar ela pertence */}
+                  <div className="p-4 bg-slate-800 rounded-xl border border-white/5 text-center">
+                    <p className="text-slate-500 text-[10px] font-black uppercase mb-2">Coordenada</p>
+                    <div className="flex items-center justify-center gap-2">
+                      <p className="text-white text-sm font-black">
+                        {pendingCoords?.x.toFixed(2)} : {pendingCoords?.y.toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="p-4 bg-slate-800 rounded-xl border border-white/5 text-center">
+                    <p className="text-slate-500 text-[10px] font-black uppercase mb-2">Região Estelar</p>
+                    <div className="flex items-center justify-center gap-2">
+                      <p className="text-white text-sm font-black">{getStarRegion(pendingCoords?.x, pendingCoords?.y)}</p>
+                    </div>
+                  </div>
+                  
                 </div>
+
+                {/* MINIMAPA DE LOCALIZAÇÃO */}
+                
+                  <div className="relative w-full h-32 bg-slate-900/50 border border-white/10 rounded-xl overflow-hidden">
+                    {/* Background sutil para parecer o céu */}
+                    <div className="absolute inset-0 opacity-20 sky-gradient-v2" />
+                    
+                    {/* Linhas de grade (opcional, para guiar o olho) */}
+                    <div className="absolute inset-0 grid grid-cols-4 grid-rows-4 opacity-10">
+                      {[...Array(16)].map((_, i) => <div key={i} className="border-[0.5px] border-white" />)}
+                    </div>
+
+                    {/* O Ponto do Astro no Minimapa */}
+                    <div 
+                      className="absolute w-3 h-3 bg-yellow-400 rounded-full shadow-[0_0_10px_#facc15] animate-pulse"
+                      style={{ 
+                        left: `${(pendingCoords.x / SKY_W) * 100}%`, 
+                        top: `${(pendingCoords.y / SKY_H) * 100}%`,
+                        transform: 'translate(-50%, -50%)'
+                      }} 
+                    />
+                    
+                    {/* Label indicando que é um preview */}
+                    <div className="absolute bottom-2 right-2">
+                      <span className="text-[8px] text-slate-500 font-black uppercase tracking-widest">Localização no Firmamento</span>
+                    </div>
+                  </div>
+                  </>
+                )}
+
                 <div className="grid grid-cols-5 gap-3">
                   {ASTRO_COLORS.map(c => <button key={c} onClick={() => setColor(c)} className={`h-8 rounded-lg transition-all ${color === c ? 'ring-2 ring-white scale-110 shadow-lg' : 'opacity-40 hover:opacity-100'}`} style={{backgroundColor: c}} />)}
                 </div>
@@ -416,8 +570,8 @@ const App: React.FC = () => {
             </Modal>
 
             {/* Astro Details Modal */}
-            <Modal isOpen={!!selectedAstro} onClose={() => setSelectedAstro(null)} title="Sinal Identificado">
-              <div className="text-center py-6">
+            <Modal isOpen={!!selectedAstro} onClose={() => setSelectedAstro(null)}>
+              <div className="animate-entrance backdrop-blur-sm text-center py-6">
                 <div className="w-24 h-24 mx-auto mb-8 flex items-center justify-center relative">
                   <div className="absolute inset-0 rounded-full blur-3xl opacity-30" style={{backgroundColor: selectedAstro?.color}} />
                   <div className={`w-14 h-14 rounded-full relative z-10 flex items-center justify-center modal-star-anim shadow-2xl`} style={{backgroundColor: selectedAstro?.color, boxShadow: `0 0 50px ${selectedAstro?.color}aa`}}>
@@ -431,6 +585,12 @@ const App: React.FC = () => {
                 </div>
               </div>
             </Modal>
+
+            {/* O MODAL */}
+          <ModalSobre 
+            isOpen={modalAberto} 
+            onClose={() => setModalAberto(false)} 
+          />
           </div>
         </>
       )}

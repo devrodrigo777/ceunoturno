@@ -20,6 +20,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
             <i className="fa-solid fa-xmark text-xl"></i>
           </button>
         </div>
+        
         <div className="p-6">
           {children}
         </div>
