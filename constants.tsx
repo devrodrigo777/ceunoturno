@@ -14,14 +14,24 @@ export const TYPE_PRICES = {
   nebula: 700
 };
 
+export const PRICES = {
+  TYPE: { star: 0, planet: 300, nebula: 700 },
+  AREA: { center: 500, periphery: 100 }
+};
+
 export const ASTRO_COLORS = [
   '#fde047', '#68acff', '#f87171', '#ffffff', '#b267fd',
 ];
 
+export const CENTER_LIMITS = {
+  x: [1500, 2500],
+  y: [1000, 2000],
+}
+
 export const INITIAL_ASTROS: any[] = [
   {
     id: '1',
-    userName: 'Fundador',
+    user_name: 'Fundador',
     message: 'Que este céu brilhe para sempre.',
     position: AstroPosition.ZENITH,
     type: 'star',

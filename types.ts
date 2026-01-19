@@ -10,8 +10,8 @@ export type AstroType = 'star' | 'planet' | 'nebula';
 
 export interface Astro {
   id: string;
-  userId: string;
-  userName: string;
+  user_id: string;
+  user_name: string;
   message: string;
   position: AstroPosition;
   type: AstroType;
@@ -20,7 +20,7 @@ export interface Astro {
   x: number; // Pixels in 3000x2000
   y: number; // Pixels in 3000x2000
   coordinate: string;
-  createdAt: number;
+  created_at: number;
 }
 
 export interface User {

@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Astro, AstroPosition, User, AstroType } from './types';
-import { POSITION_PRICES, TYPE_PRICES, ASTRO_COLORS, INITIAL_ASTROS } from './constants';
+import { POSITION_PRICES, TYPE_PRICES, ASTRO_COLORS, INITIAL_ASTROS, CENTER_LIMITS, PRICES } from './constants';
 import AstroItem from './components/AstroItem';
 import Modal from './components/Modal';
 import FullscreenPrompt from './components/FullScreenPrompt';
 import SplashScreen from './components/SplashScreen';
 import ModalSobre from './components/ModalSobre';
+import { supabase } from './services/supabaseClient';
+import FullscreenMonitor from './components/FullScreenMonitor';
+import UserDashboard from './components/UserDashboard';
+import { Toaster, toast } from 'sonner';
 
 const SKY_W = 4000;
 const SKY_H = 3000;
@@ -32,6 +36,247 @@ const App: React.FC = () => {
   const touchStartPos = useRef({ x: 0, y: 0 });
   const [pendingCoords, setPendingCoords] = useState<{x: number, y: number} | null>(null);
   const [errorMarker, setErrorMarker] = useState<{ x: number, y: number } | null>(null);
+
+  //#region Autenticação
+  // Session
+  const [session, setSession] = useState<any>(null);
+  const [isDashboardOpen, setIsDashboardOpen] = useState(false);
+
+  useEffect(() => {
+    // 1. Pega a sessão atual ao carregar a página
+    const initializeAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
+
+      // 3. Caso a sessão exista, ele irá dar refresh, então pularemos splash e apresentação
+      if(session) {
+        setIsLoading(false);
+        setShowIntro(false);
+      }
+    };
+
+    initializeAuth();
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log(session);
+      console.log(user);
+      setSession(session);
+    });
+
+    // 2. Escuta mudanças na autenticação (Login/Logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogin = async () => {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin }
+      });
+
+    if (error) console.error("Erro ao logar:", error.message);
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setIsDashboardOpen(false);
+  };
+  //#endregion
+
+
+  //#region Calculos do backend aqui para visualização
+
+  const calculateFrontendPrice = (x: number, y: number, type: string) => {
+    // Lógica da Posição (Espelhando o SQL)
+    const isInCenter = 
+      x >= CENTER_LIMITS.x[0] && 
+      x <= CENTER_LIMITS.x[1] &&
+      y >= CENTER_LIMITS.y[0] && 
+      y <= CENTER_LIMITS.y[1];
+
+    const basePrice = isInCenter ? PRICES.AREA.center : PRICES.AREA.periphery;
+    const typePrice = PRICES.TYPE[type as keyof typeof PRICES.TYPE] || 0;
+
+    return basePrice + typePrice;
+  };
+
+  //#endregion
+
+
+  //#region Captura dos Astros via DB
+  
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      // 1. Verifica se temos um usuário logado
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        // 2. Busca o saldo na tabela 'profiles'
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('credits')
+          .eq('id', session.user.id)
+          .single();
+
+        if (error) {
+          console.error("Erro ao carregar créditos:", error.message);
+        } else if (data) {
+          setUser({
+            ...user,
+            balance: data.credits
+          });
+        }
+      }
+    };
+
+    fetchUserProfile();
+
+    // 3. Opcional: Escutar mudanças no Auth (Login/Logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        fetchUserProfile();
+      } else {
+        setUser({ id: 'u1', name: 'Explorador', balance: 0 });
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!session?.user.id) return;
+
+    const profileChannel = supabase
+      .channel('perfil_realtime')
+      .on(
+        'postgres_changes',
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'profiles', 
+          filter: `id=eq.${session.user.id}` 
+        },
+        (payload) => {
+          // Quando o banco mudar (pela RPC ou admin), o estado muda na hora
+          console.log("Saldo atualizado via Realtime:", payload.new.credits);
+          setUser((prevUser) => ({
+            ...prevUser,
+            balance: payload.new.credits,
+          }));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(profileChannel);
+    };
+  }, [session?.user.id]);
+
+  // Modifique o seu useEffect de carregamento
+  useEffect(() => {
+
+    const fetchAstros = async () => {
+      const { data, error } = await supabase
+        .from('astros')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error("Erro ao carregar os astros:", error);
+      } else {
+        setAstros(data || []);
+      }
+    };
+
+    // Carrega os astros independente de estar logado ou não
+    fetchAstros();
+
+    // 2. Escuta em Tempo Real (Realtime)
+    // Criamos um canal que "ouve" qualquer INSERT na tabela 'astros'
+    const channel = supabase
+      .channel('mapa_total')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'astros' }, // O '*' captura tudo
+        (payload) => {
+          const { eventType, new: newRow, old: oldRow } = payload;
+          
+          console.log("Payload: " + payload);
+          // setUser((prevUser) => {
+          //   if (payload.new.user_id === prevUser.id) {
+          //     return { ...prevUser, balance: payload.new.balance };
+          //   }
+          //   return prevUser;
+          // });
+
+          if (eventType === 'INSERT') {
+            const novoAstro = payload.new as Astro;
+            setAstros((prev) => {
+              // Regra de ouro: nunca adicionar se o ID já existir no estado
+              if (prev.find(a => a.id === novoAstro.id)) {
+                return prev;
+              }
+              return [...prev, novoAstro];
+            });
+
+            // 2. Opcional: Se o usuário não for quem criou, mostrar uma pequena notificação
+            if (novoAstro.user_id !== session?.user.id) {
+                toast.custom((t) => (
+                  <div className="flex flex-col gap-3 p-1">
+                  <div className="flex items-center gap-3">
+                    <div 
+                      className="w-3 h-3 rounded-full animate-pulse" 
+                      style={{ backgroundColor: novoAstro.color, boxShadow: `0 0 10px ${novoAstro.color}` }}
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Novo astro descoberto</span>
+                      <span className="text-xs text-slate-200">
+                        {novoAstro.user_name} registrou uma mensagem no cosmos.
+                      </span>
+                    </div>
+                  </div>
+
+                  <button 
+                    onClick={() => {
+                      targetOff.current = { x: -(novoAstro.x * currentZoom.current) + window.innerWidth/2, y: -(novoAstro.y * currentZoom.current) + window.innerHeight/2 };
+                      toast.dismiss(t); // Fecha o toast após clicar
+                    }}
+                    className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-colors border border-indigo-400/30"
+                  >
+                    Viajar até a coordenada <i className="fa-solid fa-arrow-right ml-2"></i>
+                  </button>
+                  </div>
+                ), { duration: 5000 });
+                
+                // 2. Opcional: tocar um som sutil de "plim" aqui
+                // const audio = new Audio('/sounds/star-birth.mp3');
+                // audio.volume = 0.2;
+                // audio.play().catch(() => {}); // Ignora erro se browser bloquear som
+            }
+          }
+
+          if (eventType === 'UPDATE') {
+            setAstros((prev) => 
+              prev.map((astro) => (astro.id === newRow.id ? (newRow as Astro) : astro))
+            );
+          }
+
+          if (eventType === 'DELETE') {
+            setAstros((prev) => prev.filter((astro) => astro.id !== oldRow.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  //#endregion
 
   const getStarRegion = (x: number, y: number): AstroPosition => {
     if (y < 700) {
@@ -145,7 +390,7 @@ const App: React.FC = () => {
     const duration = 3000;
     const intervalTime = 100;
     const increment = 100 / (duration / intervalTime);
-
+    
     const timer = setInterval(() => {
       setProgress(prev => {
         if (prev >= 100) {
@@ -163,7 +408,7 @@ const App: React.FC = () => {
         // Aqui você carregaria os dados do seu banco
         setTimeout(() => {
           setIsLoading(false);
-          setShowIntro(true); // Após carregar, mostra o pedido de Fullscreen
+          // setShowIntro(true); // Após carregar, mostra o pedido de Fullscreen
         }, duration + 500);
       } catch (error) {
         console.error("Erro ao carregar dados", error);
@@ -281,54 +526,105 @@ const App: React.FC = () => {
     return `RA ${h}h ${m}m / DEC ${d > 0 ? '+' : ''}${d}°`;
   };
 
-  const handlePurchase = () => {
-    const total = POSITION_PRICES[pos] + TYPE_PRICES[type];
-    if (user.balance < total) return alert('Créditos estelares insuficientes!');
-
-    // Safety Distance Enforcement (Collision)
-    let x = 0, y = 0, attempts = 0;
-    let safe = false;
-    const MAX_ATTEMPTS = 50; // Limite de tentativas para encontrar uma posição segura
-
-    while (attempts < MAX_ATTEMPTS) {
-      switch (pos) {
-        case AstroPosition.ZENITH: x = 1200 + Math.random() * 600; y = 700 + Math.random() * 600; break;
-        case AstroPosition.HORIZON_LEFT: x = 200 + Math.random() * 600; y = 800 + Math.random() * 800; break;
-        case AstroPosition.HORIZON_RIGHT: x = 2200 + Math.random() * 600; y = 800 + Math.random() * 800; break;
-        case AstroPosition.HORIZON: x = 500 + Math.random() * 2000; y = 150 + Math.random() * 300; break;
-        case AstroPosition.NADIR: x = 500 + Math.random() * 2000; y = 1600 + Math.random() * 300; break;
-      }
-
-      // Verifica se a nova posição está muito próxima de algum astro existente
-      const isTooClose = astros.some(a => Math.hypot(a.x - x, a.y - y) < MIN_ASTRO_DISTANCE);
-      if (!isTooClose) {
-        safe = true;
-        break;
-      }
-      attempts++;
-    }
-
-    if (!safe) {
-      return alert('Esta região está muito congestionada. Tente outra posição ou aguarde por um espaço.');
-    }
-
-    x = pendingCoords.x;
-    y = pendingCoords.y;
-
-    const newAstro: Astro = {
-      id: Math.random().toString(36).substr(2, 9),
-      userId: user.id, userName: user.name,
-      message: msg || "Um brilho na eternidade...",
-      position: pos, type, color,
-      size: type === 'nebula' ? 50 : type === 'planet' ? 24 : 12,
-      x, y, coordinate: generateFictionalCoordinate(), createdAt: Date.now()
-    };
+  const handlePurchase = async () => {
+    if (!session?.user) return toast.error("Precisas de estar logado!");
     
-    setAstros(prev => [...prev, newAstro]);
-    setUser(prev => ({ ...prev, balance: prev.balance - total }));
-    setIsPurchaseModalOpen(false);
-    // Focus view on new astro
-    targetOff.current = { x: -(x * currentZoom.current) + window.innerWidth/2, y: -(y * currentZoom.current) + window.innerHeight/2 };
+    // Iniciamos um estado de loading no botão para evitar cliques duplos
+    // setIsLoading(true);
+
+    try {
+      // Chamamos a função RPC do Supabase
+      // Nota: enviamos apenas o essencial. O banco decide o resto.
+      const { data, error } = await supabase.rpc('purchase_astro', {
+        p_user_id: session.user.id,
+        p_message: msg, // O que o usuário escreveu no modal
+        p_x: Math.round(pendingCoords.x), // Coordenada capturada no clique
+        p_y: Math.round(pendingCoords.y),
+        p_type: type,    // 'star', 'planet' ou 'nebula'
+        p_color: color   // Hexadecimal selecionado
+      });
+
+      // Se o banco retornar erro (Saldo insuficiente, Muito próximo, etc)
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      // SUCESSO! 
+      // O 'data' já contém o astro completo gerado pelo banco (incluindo o size e o ID)
+      const novoAstro = data;
+
+      // 1. Atualizamos o estado local de astros (para o criador ver na hora)
+      setAstros(prev => {
+        // Verifica se o astro já não foi adicionado pelo WebSocket
+        const existe = prev.some(a => a.id === novoAstro.id);
+        if (existe) return prev;
+        return [...prev, novoAstro];
+      });
+
+      // 2. Opcional: Atualizar o saldo de créditos na UI local se tiveres esse estado
+      // setUserProfile(prev => ({ ...prev, credits: prev.credits - data.valor_pago }));
+      setUser(prev => ({ ...prev, balance: prev.balance - data.valor_pago }));
+
+      toast.success("O cosmos acolhe a tua nova criação!");
+      
+      // 3. Fechar o modal e limpar os inputs
+      setIsPurchaseModalOpen(false);
+      // setMessageInput("");
+
+    } catch (err: any) {
+      // Aqui capturamos o "Coordenadas muito próximas" ou "Saldo insuficiente" do SQL
+      toast.error(err.message || "Erro na comunicação estelar.");
+    } finally {
+      // setIsLoading(false);
+    }
+    // const total = POSITION_PRICES[pos] + TYPE_PRICES[type];
+    // if (user.balance < total) return alert('Créditos estelares insuficientes!');
+
+    // // Safety Distance Enforcement (Collision)
+    // let x = 0, y = 0, attempts = 0;
+    // let safe = false;
+    // const MAX_ATTEMPTS = 50; // Limite de tentativas para encontrar uma posição segura
+
+    // while (attempts < MAX_ATTEMPTS) {
+    //   switch (pos) {
+    //     case AstroPosition.ZENITH: x = 1200 + Math.random() * 600; y = 700 + Math.random() * 600; break;
+    //     case AstroPosition.HORIZON_LEFT: x = 200 + Math.random() * 600; y = 800 + Math.random() * 800; break;
+    //     case AstroPosition.HORIZON_RIGHT: x = 2200 + Math.random() * 600; y = 800 + Math.random() * 800; break;
+    //     case AstroPosition.HORIZON: x = 500 + Math.random() * 2000; y = 150 + Math.random() * 300; break;
+    //     case AstroPosition.NADIR: x = 500 + Math.random() * 2000; y = 1600 + Math.random() * 300; break;
+    //   }
+
+    //   // Verifica se a nova posição está muito próxima de algum astro existente
+    //   const isTooClose = astros.some(a => Math.hypot(a.x - x, a.y - y) < MIN_ASTRO_DISTANCE);
+    //   if (!isTooClose) {
+    //     safe = true;
+    //     break;
+    //   }
+    //   attempts++;
+    // }
+
+    // if (!safe) {
+    //   return alert('Esta região está muito congestionada. Tente outra posição ou aguarde por um espaço.');
+    // }
+
+    // x = pendingCoords.x;
+    // y = pendingCoords.y;
+
+    // const newAstro: Astro = {
+    //   id: Math.random().toString(36).substr(2, 9),
+    //   user_id: user.id, user_name: user.name,
+    //   message: msg || "Um brilho na eternidade...",
+    //   position: pos, type, color,
+    //   size: type === 'nebula' ? 50 : type === 'planet' ? 24 : 12,
+    //   x, y, coordinate: generateFictionalCoordinate(), created_at: Date.now()
+    // };
+    
+    // setAstros(prev => [...prev, newAstro]);
+    // setUser(prev => ({ ...prev, balance: prev.balance - total }));
+    // setIsPurchaseModalOpen(false);
+    // // Focus view on new astro
+    // targetOff.current = { x: -(x * currentZoom.current) + window.innerWidth/2, y: -(y * currentZoom.current) + window.innerHeight/2 };
+    // setIsDashboardOpen(false);
   };
 
   const renderConstellationLines = () => {
@@ -365,15 +661,47 @@ const App: React.FC = () => {
   return lines;
 };
 
+
+
   return (
     <>
       {/* Ordem de Camadas: Splash -> Modal Fullscreen -> App */}
-      {isLoading && <SplashScreen progress={progress} />}
+      {isLoading && <SplashScreen progress={progress} onComplete={() => setShowIntro(true)} />}
       
-      {showIntro && <FullscreenPrompt onEnter={handleEnableFullScreen} />}
+      {!session && showIntro && <FullscreenPrompt onEnter={handleEnableFullScreen} />}
+
+      {!isLoading && !showIntro && <FullscreenMonitor />}
+
+      {isDashboardOpen && <UserDashboard
+        user={session?.user}
+        credits={user.balance}
+        myAstros={astros}
+        isOpen={isDashboardOpen}
+        onClose={() => setIsDashboardOpen(false)}
+        onAbout={() => { setIsDashboardOpen(false);setIsModalSobreOpen(true); setModalAberto(true); }}
+        onFocusAstro={(astro_x, astro_y) => {
+          targetOff.current = { x: -(astro_x * currentZoom.current) + window.innerWidth/2, y: -(astro_y * currentZoom.current) + window.innerHeight/2 };
+          setIsDashboardOpen(false);
+        }}
+        onLogout={handleLogout} />
+      }
 
       {!showIntro && !isLoading && (
         <>
+          {/* Configuração visual para combinar com o céu escuro */}
+          <Toaster 
+            theme="dark" 
+            position="bottom-right" 
+            toastOptions={{
+              style: { 
+                background: 'rgba(15, 23, 42, 0.8)', 
+                backdropFilter: 'blur(12px)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                color: '#fff',
+              },
+            }} 
+          />
+
           <div className="animate-entrance relative w-dvw h-dvh sky-gradient-v2 overflow-hidden select-none"
             onMouseDown={e => onStart(e.clientX, e.clientY, e.target as HTMLElement)}
             onMouseMove={e => onMove(e.clientX, e.clientY)}
@@ -399,12 +727,12 @@ const App: React.FC = () => {
             }}>
             
             <div className="absolute sky-canvas star-overlay" style={{ transform: `translate3d(${offset.x}px, ${offset.y}px, 0) scale(${zoom})`, width: SKY_W, height: SKY_H }}>
-<svg 
-    className="absolute inset-0 w-full h-full pointer-events-none" 
-    viewBox={`0 0 ${SKY_W} ${SKY_H}`}
-  >
-    {renderConstellationLines()}
-  </svg>
+              <svg 
+                  className="absolute inset-0 w-full h-full pointer-events-none" 
+                  viewBox={`0 0 ${SKY_W} ${SKY_H}`}
+                >
+                  {renderConstellationLines()}
+                </svg>
               {/* Badge de Erro (Too Close) */}
               {errorMarker && (
                 <div 
@@ -467,7 +795,7 @@ const App: React.FC = () => {
             
             {/* Interface Overlay */}
             <div className="absolute top-6 left-6 pointer-events-none z-10">
-              <h1 className="text-3xl font-black text-white tracking-tighter drop-shadow-2xl">CÉU<span className="text-yellow-400 italic">NOTURNO</span></h1>
+              <h1 className="text-2xl font-black text-white tracking-tighter drop-shadow-2xl">CÉU<span className="text-yellow-400 italic">NOTURNO</span></h1>
               <p className="text-[10px] text-slate-500 font-bold tracking-[0.2em] uppercase mt-1">VERSÃO 0.1b • Zoom {Math.round(zoom*100)}%</p>
             </div>
 
@@ -475,12 +803,40 @@ const App: React.FC = () => {
               <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-black text-xl shadow-lg">{user.name[0]}</div>
               <div className="flex flex-col"><span className="text-[10px] text-slate-400 font-bold uppercase">Saldo</span><span className="text-sm text-yellow-400 font-black">★ {user.balance}</span></div>
             </div> */}
-            <div className="absolute top-6 right-6 z-10 bg-slate-900/40 border animate-pulse border-white/10 backdrop-blur-xl p-2 pr-5 rounded-2xl flex items-center gap-3">
+            {/* <div className="absolute top-6 right-6 z-10 bg-slate-900/40 border animate-pulse border-white/10 backdrop-blur-xl p-2 pr-5 rounded-2xl flex items-center gap-3">
               <button onClick={() => setModalAberto(true) } className="text-white pointer-events-auto font-black px-3 py-1 rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all text-xs tracking-[0.2em] flex items-center gap-3 mx-auto">
                 <i className="fa-solid fa-question text-lg"></i> SOBRE
               </button>
-            </div>
+            </div> */}
+            {/* No local onde ficava o botão SOBRE */}
+            {!session ? (
+              <div className="absolute top-6 right-6 z-10 bg-slate-900/40 border animate-pulse border-white/10 backdrop-blur-xl p-2 pr-5 rounded-2xl flex items-center gap-3">
+                <button onClick={handleLogin} className="text-white pointer-events-auto font-black px-3 py-1 rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all text-xs tracking-[0.2em] flex items-center gap-3 mx-auto">
+                  <i className="fa-solid fa-user text-lg"></i> ACESSAR
+                </button>
+              </div>
+            ) : (
+              <div className="absolute top-6 right-6 z-10 p-2 pr-5 rounded-2xl flex items-center gap-3">
+                {/* SALDO DE CRÉDITOS (Ainda vindo do estado local por enquanto) */}
+                <div className="bg-slate-900/60 border border-white/10 px-3 py-2 rounded-xl">
+                  <span className="text-yellow-400 font-black text-xs">★ {user.balance}</span>
+                </div>
 
+                {/* AVATAR DO GOOGLE */}
+                <button onClick={() => setIsDashboardOpen(true)} className="group relative">
+                  <img 
+                    src={session.user.user_metadata.avatar_url} 
+                    alt="Perfil" 
+                    className="w-10 h-10 rounded-xl border-2 border-indigo-500 shadow-lg group-hover:scale-105 transition-transform"
+                  />
+                  <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-slate-900 rounded-full"></div>
+                </button>
+              </div>
+            )}
+
+            <div className="absolute bottom-11 left-1/2 -translate-x-1/2 text-center z-10 w-full px-6 pointer-events-none">
+              <p className="text-slate-400 text-[11px] font-black uppercase tracking-[0.3em] mb-4 animate-pulse">Toque em um astro e descubra sua mensagem</p>
+            </div>
             {/* <div className="absolute bottom-11 left-1/2 -translate-x-1/2 text-center z-10 w-full px-6 pointer-events-none">
               <p className="text-slate-400 text-[11px] font-black uppercase tracking-[0.3em] mb-4 animate-pulse">Clique em uma estrela para ver a mensagem</p>
               <button onClick={() => setIsPurchaseModalOpen(true)} className="animate-pulse pointer-events-auto bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-black px-6 py-3 rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all text-xs tracking-[0.2em] flex items-center gap-3 mx-auto">
@@ -504,7 +860,7 @@ const App: React.FC = () => {
                     <button key={t} onClick={() => setType(t)} className={`flex-1 py-4 rounded-xl flex flex-col items-center gap-1 transition-all ${type === t ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>
                       <i className={`fa-solid ${t === 'star' ? 'fa-star' : t === 'planet' ? 'fa-earth-americas' : 'fa-cloud-sun'}`}></i>
                       <span className="text-[9px] font-black uppercase">{t}</span>
-                      <span className="text-[8px] opacity-70">+★{TYPE_PRICES[t]}</span>
+                      <span className="text-[8px] opacity-70">★{TYPE_PRICES[t]}</span>
                     </button>
                   ))}
                 </div>
@@ -565,7 +921,13 @@ const App: React.FC = () => {
                 <div className="grid grid-cols-5 gap-3">
                   {ASTRO_COLORS.map(c => <button key={c} onClick={() => setColor(c)} className={`h-8 rounded-lg transition-all ${color === c ? 'ring-2 ring-white scale-110 shadow-lg' : 'opacity-40 hover:opacity-100'}`} style={{backgroundColor: c}} />)}
                 </div>
-                <button onClick={handlePurchase} className="w-full bg-yellow-400 text-slate-950 font-black py-4 rounded-xl shadow-xl transition-all uppercase tracking-widest text-xs">Confirmar Reivindicação (★ {POSITION_PRICES[pos] + TYPE_PRICES[type]})</button>
+                {user.balance >= calculateFrontendPrice(pendingCoords?.x, pendingCoords?.y, type) && (
+                  <button onClick={handlePurchase} className="w-full bg-yellow-400 text-slate-950 font-black py-4 rounded-xl shadow-xl transition-all uppercase tracking-widest text-xs">Confirmar Reivindicação (★ {calculateFrontendPrice(pendingCoords?.x, pendingCoords?.y, type)})</button>
+                )}
+                
+                {user.balance < calculateFrontendPrice(pendingCoords?.x, pendingCoords?.y, type) && (
+                  <p className="text-center w-full bg-yellow-400 bg-opacity-50 text-slate-950 font-black py-4 rounded-xl shadow-xl transition-all uppercase tracking-widest text-xs">Saldo insuficiente (★ {calculateFrontendPrice(pendingCoords?.x, pendingCoords?.y, type)})</p>
+                )}
               </div>
             </Modal>
 
@@ -581,7 +943,7 @@ const App: React.FC = () => {
                 <p className="text-2xl text-white font-serif italic leading-relaxed px-4">"{selectedAstro?.message}"</p>
                 <div className="mt-8 pt-6 border-t border-white/5 space-y-1">
                   <p className="text-[10px] text-indigo-400 font-mono uppercase tracking-[0.2em]">{selectedAstro?.coordinate}</p>
-                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Observado por {selectedAstro?.userName}</p>
+                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Observado por {selectedAstro?.user_name}</p>
                 </div>
               </div>
             </Modal>

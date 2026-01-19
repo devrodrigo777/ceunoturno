@@ -1,6 +1,14 @@
 import React from 'react';
+import { useEffect } from 'react';
 
-const SplashScreen: React.FC<{ progress: number }> = ({ progress }) => {
+const SplashScreen: React.FC<{ progress: number }> = ({ progress, onComplete }) => {
+
+  useEffect(() => {
+    if (progress >= 100) {
+        onComplete(); // Agora o React sabe que isso é um "efeito colateral" após o render
+    }
+    }, [progress, onComplete]);
+
   return (
     <div className="animate-entrance fixed inset-0 z-[110] bg-[#020617] flex flex-col items-center justify-center p-6">
       {/* Elemento Visual Central */}

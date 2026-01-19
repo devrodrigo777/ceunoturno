@@ -8,15 +8,21 @@ interface AstroItemProps {
 
 const AstroItem: React.FC<AstroItemProps> = ({ astro, onClick }) => {
   const duration = React.useMemo(() => (Math.random() * 3 + 2).toFixed(2) + 's', []);
+  const fadeInScale = "animate-[scaleIn_0.5s_ease-out]";
+  // Verifica se o astro foi criado nos últimos 3 segundos
+  const isNew = new Date().getTime() - new Date(astro.created_at).getTime() < 3000;
 
+  astro.size = astro.size || 100;
+  // console.log(astro);
   return (
     <div
       onClick={() => onClick(astro)}
-      className="absolute cursor-pointer group flex items-center justify-center -translate-x-1/2 -translate-y-1/2"
+      className={`absolute cursor-pointer group flex items-center justify-center -translate-x-1/2 -translate-y-1/2 ${isNew ? 'animate-birth' : ''}`}
       style={{
         left: astro.x,
         top: astro.y,
       }}
+      
     >
       <div 
         className={`${astro.type === 'star' ? 'twinkle-anim' : ''} relative flex items-center justify-center`}
@@ -53,7 +59,7 @@ const AstroItem: React.FC<AstroItemProps> = ({ astro, onClick }) => {
       
       {/* Mini Label */}
       <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/90 text-white text-[9px] px-2 py-1 rounded whitespace-nowrap z-50 border border-white/10 uppercase font-black">
-        {astro.userName}
+        {astro.user_name}
       </div>
     </div>
   );
