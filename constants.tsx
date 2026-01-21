@@ -14,6 +14,26 @@ export const TYPE_PRICES = {
   nebula: 700
 };
 
+export const ASTRO_AREAS = {
+  center: "HORIZONTE",
+  periphery: "PERIFERIA",
+};
+
+export interface AstroQuote {
+  x: number;
+  y: number;
+  area: typeof ASTRO_AREAS[keyof typeof ASTRO_AREAS];
+  type: "star" | "planet" | "nebula";
+  color: string;
+  too_close: boolean;
+  base_price: number;
+  type_price: number;
+  total_price: number;
+  final_size: number;
+  coordinate: string;
+  color_allowed: boolean;
+}
+
 export const PRICES = {
   TYPE: { star: 0, planet: 300, nebula: 700 },
   AREA: { center: 500, periphery: 100 }
@@ -27,6 +47,12 @@ export const CENTER_LIMITS = {
   x: [1500, 2500],
   y: [1000, 2000],
 }
+
+export const ASTRO_NAMES = {
+  'star': 'Estrela',
+  'planet': 'Planeta',
+  'nebula': 'Nebulosa',
+};
 
 export const INITIAL_ASTROS: any[] = [
   {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Astro, AstroPosition, User, AstroType } from './types';
-import { POSITION_PRICES, TYPE_PRICES, ASTRO_COLORS, INITIAL_ASTROS, CENTER_LIMITS, PRICES } from './constants';
+import { ASTRO_NAMES, TYPE_PRICES, ASTRO_COLORS, INITIAL_ASTROS, CENTER_LIMITS, PRICES, ASTRO_AREAS } from './constants';
 import AstroItem from './components/AstroItem';
 import Modal from './components/Modal';
 import FullscreenPrompt from './components/FullScreenPrompt';
@@ -25,6 +25,7 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User>({ id: 'u1', name: 'Explorador', balance: 2500 });
   const [selectedAstro, setSelectedAstro] = useState<Astro | null>(null);
   const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
+  const [quote, setQuote] = useState<any>(null);
   const [showIntro, setShowIntro] = useState(false);
 
   // Modal Sobre State
@@ -37,16 +38,59 @@ const App: React.FC = () => {
   const [pendingCoords, setPendingCoords] = useState<{x: number, y: number} | null>(null);
   const [errorMarker, setErrorMarker] = useState<{ x: number, y: number } | null>(null);
 
+  // Form State
+  const [msg, setMsg] = useState(''); // texto da descoberta
+  const [titulo, setTitulo] = useState(''); // título da descoberta
+  const [pos, setPos] = useState<AstroPosition>(AstroPosition.ZENITH);
+  const [type, setType] = useState<AstroType>('star');
+  const [color, setColor] = useState(ASTRO_COLORS[0]);
+
+  // Fotos
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
+
   //#region Autenticação
   // Session
   const [session, setSession] = useState<any>(null);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
+
+  const sessionUserIdRef = useRef<string | null>(null);
+
+
+  const previewAstro: Astro | null = pendingCoords
+  ? {
+      id: "preview",
+      user_id: session?.user?.id ?? "preview",
+      user_name: session?.user?.user_metadata?.full_name
+        ?? session?.user?.user_metadata?.name
+        ?? "Explorador",
+      message: msg || "",
+      position: pos,
+      type,
+      color,
+      size: type === "nebula" ? 33 : type === "planet" ? 18 : 12,
+      x: Math.round(pendingCoords.x),
+      y: Math.round(pendingCoords.y),
+      coordinate: "PRÉVIA",
+      created_at: Date.now(),
+      // aqui entra a imagem (prévia local ou path/url depois)
+      image_url: imagePreviewUrl, // se você estiver usando preview local (createObjectURL)
+    }
+  : null;
+
+
+  useEffect(() => {
+    sessionUserIdRef.current = session?.user?.id ?? null;
+  }, [session?.user?.id]);
 
   useEffect(() => {
     // 1. Pega a sessão atual ao carregar a página
     const initializeAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
+      console.log(session);
 
       // 3. Caso a sessão exista, ele irá dar refresh, então pularemos splash e apresentação
       if(session) {
@@ -71,6 +115,14 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Helper para limpar imagens quando fecha o modal
+  const resetImage = () => {
+    setImageFile(null);
+    if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+    setImagePreviewUrl(null);
+    setUploadedImageUrl(null);
+  };
+
   const handleLogin = async () => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -89,19 +141,25 @@ const App: React.FC = () => {
 
   //#region Calculos do backend aqui para visualização
 
-  const calculateFrontendPrice = (x: number, y: number, type: string) => {
-    // Lógica da Posição (Espelhando o SQL)
-    const isInCenter = 
-      x >= CENTER_LIMITS.x[0] && 
-      x <= CENTER_LIMITS.x[1] &&
-      y >= CENTER_LIMITS.y[0] && 
-      y <= CENTER_LIMITS.y[1];
+  const calculateFrontendPrice = (quote : any, type: string) => {
+    if (!quote) return 0;
 
-    const basePrice = isInCenter ? PRICES.AREA.center : PRICES.AREA.periphery;
-    const typePrice = PRICES.TYPE[type as keyof typeof PRICES.TYPE] || 0;
+    return quote.base_price + quote.type_prices[type];
+  }
+  // DEPRECADO
+  // const calculateFrontendPrice = (x: number, y: number, type: string) => {
+  //   // Lógica da Posição (Espelhando o SQL)
+  //   const isInCenter = 
+  //     x >= CENTER_LIMITS.x[0] && 
+  //     x <= CENTER_LIMITS.x[1] &&
+  //     y >= CENTER_LIMITS.y[0] && 
+  //     y <= CENTER_LIMITS.y[1];
 
-    return basePrice + typePrice;
-  };
+  //   const basePrice = isInCenter ? PRICES.AREA.center : PRICES.AREA.periphery;
+  //   const typePrice = PRICES.TYPE[type as keyof typeof PRICES.TYPE] || 0;
+
+  //   return basePrice + typePrice;
+  // };
 
   //#endregion
 
@@ -204,14 +262,15 @@ const App: React.FC = () => {
         (payload) => {
           const { eventType, new: newRow, old: oldRow } = payload;
           
-          console.log("Payload: " + payload);
+          // console.log("Payload: " + payload);
           // setUser((prevUser) => {
           //   if (payload.new.user_id === prevUser.id) {
           //     return { ...prevUser, balance: payload.new.balance };
           //   }
           //   return prevUser;
           // });
-
+          let userId = sessionUserIdRef.current;
+          console.log(userId);
           if (eventType === 'INSERT') {
             const novoAstro = payload.new as Astro;
             setAstros((prev) => {
@@ -223,7 +282,7 @@ const App: React.FC = () => {
             });
 
             // 2. Opcional: Se o usuário não for quem criou, mostrar uma pequena notificação
-            if (novoAstro.user_id !== session?.user.id) {
+            if (novoAstro.user_id !== userId) {
                 toast.custom((t) => (
                   <div className="flex flex-col gap-3 p-1">
                   <div className="flex items-center gap-3">
@@ -234,7 +293,7 @@ const App: React.FC = () => {
                     <div className="flex flex-col">
                       <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Novo astro descoberto</span>
                       <span className="text-xs text-slate-200">
-                        {novoAstro.user_name} registrou uma mensagem no cosmos.
+                        Alguém deixou uma nova mensagem no cosmos!
                       </span>
                     </div>
                   </div>
@@ -294,8 +353,9 @@ const App: React.FC = () => {
     }
   };
 
-  const handleMapClick = (clientX: number, clientY: number) => {
+  const handleMapClick = async (clientX: number, clientY: number) => {
       if (isPurchaseModalOpen || selectedAstro || modalAberto) return;
+
       if(Math.abs(velocity.current.x) < 0.5 && Math.abs(velocity.current.y) < 0.5)
       {
         // Converte pixel da tela para coordenada real do Canvas
@@ -306,15 +366,6 @@ const App: React.FC = () => {
 
         // Verificamos primeiro as extremidades verticais (Zênite e Nadir)
         zona = getStarRegion(canvasX, canvasY);
-
-        // 3. Output no Console
-        console.log(`📍 Clique detectado!`);
-        console.log(`Coordenadas: X: ${Math.round(canvasX)} | Y: ${Math.round(canvasY)}`);
-        console.log(`Zona Identificada: ${zona}`);
-        console.log('---------------------------');
-
-        // Ativa o marcador visual
-        setClickMarker({ x: canvasX, y: canvasY });
 
         // Remove o brilho após 2 segundos para não poluir a tela
         setTimeout(() => setClickMarker(null), 2000);
@@ -333,15 +384,39 @@ const App: React.FC = () => {
           setTimeout(() => setErrorMarker(null), 1500);
           return; // Interrompe a função aqui
         } else {
+
+          // Ativa o marcador visual
+          setClickMarker({ x: canvasX, y: canvasY });
+
           setPendingCoords({ x: canvasX, y: canvasY });
           
           const zonaCalculada = getStarRegion(canvasX, canvasY);
           setPos(zonaCalculada); // Isso atualiza o estado 'pos' para o preço ficar correto no modal
 
-          setIsPurchaseModalOpen(true);
+
+            if (!session?.user) return;
+
+            const { data, error } = await supabase.rpc("quote_astro", {
+              p_x: Math.round(canvasX),
+              p_y: Math.round(canvasY),
+            });
+
+            if (error) return; // aqui você pode toast.error
+            setQuote(data);
+
+            setIsPurchaseModalOpen(true);
+
         }
       }
   };
+
+  const closePurchaseModal = () => {
+    setQuote(null);
+    setMsg("");
+      setTitulo("");
+    resetImage();
+    setIsPurchaseModalOpen(false);
+  }
 
   const handleEnd = (clientX: number, clientY: number) => {
     setIsDragging(false);
@@ -378,11 +453,7 @@ const App: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const pinchDist = useRef<number | null>(null);
 
-  // Form State
-  const [msg, setMsg] = useState('');
-  const [pos, setPos] = useState<AstroPosition>(AstroPosition.ZENITH);
-  const [type, setType] = useState<AstroType>('star');
-  const [color, setColor] = useState(ASTRO_COLORS[0]);
+  
 
   // Initial Loading Progress
   useEffect(() => {
@@ -526,22 +597,44 @@ const App: React.FC = () => {
     return `RA ${h}h ${m}m / DEC ${d > 0 ? '+' : ''}${d}°`;
   };
 
+  const uploadAstroImageIfNeeded = async (): Promise<string | null> => {
+    if (!imageFile || !session?.user) return null;
+
+    const ext = imageFile.name.split(".").pop() || "jpg";
+    const fileName = `${session.user.id}/${crypto.randomUUID()}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("astro-images")
+      .upload(fileName, imageFile, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: imageFile.type,
+      });
+
+    if (uploadError) throw new Error(uploadError.message);
+
+    const { data } = supabase.storage.from("astro-images").getPublicUrl(fileName);
+    return data.publicUrl;
+  };
+
   const handlePurchase = async () => {
-    if (!session?.user) return toast.error("Precisas de estar logado!");
+    if (!session?.user) return toast.error("É necessário login para continuar.");
     
     // Iniciamos um estado de loading no botão para evitar cliques duplos
     // setIsLoading(true);
 
     try {
+      const imageUrl = uploadedImageUrl ?? (await uploadAstroImageIfNeeded());
+      setUploadedImageUrl(imageUrl);
       // Chamamos a função RPC do Supabase
       // Nota: enviamos apenas o essencial. O banco decide o resto.
       const { data, error } = await supabase.rpc('purchase_astro', {
-        p_user_id: session.user.id,
         p_message: msg, // O que o usuário escreveu no modal
         p_x: Math.round(pendingCoords.x), // Coordenada capturada no clique
         p_y: Math.round(pendingCoords.y),
         p_type: type,    // 'star', 'planet' ou 'nebula'
-        p_color: color   // Hexadecimal selecionado
+        p_color: color,   // Hexadecimal selecionado
+        p_image_path: imageUrl // URL da imagem enviada, se houver
       });
 
       // Se o banco retornar erro (Saldo insuficiente, Muito próximo, etc)
@@ -563,12 +656,12 @@ const App: React.FC = () => {
 
       // 2. Opcional: Atualizar o saldo de créditos na UI local se tiveres esse estado
       // setUserProfile(prev => ({ ...prev, credits: prev.credits - data.valor_pago }));
-      setUser(prev => ({ ...prev, balance: prev.balance - data.valor_pago }));
+      // setUser(prev => ({ ...prev, balance: prev.balance - data.valor_pago }));
 
-      toast.success("O cosmos acolhe a tua nova criação!");
+      toast.success("O cosmos acolhe sua nova descoberta!");
       
       // 3. Fechar o modal e limpar os inputs
-      setIsPurchaseModalOpen(false);
+      closePurchaseModal();
       // setMessageInput("");
 
     } catch (err: any) {
@@ -789,7 +882,7 @@ const App: React.FC = () => {
                 <span className="px-5 py-2 rounded-full border border-white/10 bg-black/30 text-[10px] text-white font-black tracking-[0.4em] uppercase">Horizonte Oeste</span>
               </div>
 
-              {astros.map(a => <AstroItem key={a.id} astro={a} onClick={setSelectedAstro} />)}
+              {astros.map(a => <AstroItem key={a.id} astro={a} onClick={ () => { setSelectedAstro(a); setErrorMarker(null); }} />)}
             </div>
 
             
@@ -834,9 +927,7 @@ const App: React.FC = () => {
               </div>
             )}
 
-            <div className="absolute bottom-11 left-1/2 -translate-x-1/2 text-center z-10 w-full px-6 pointer-events-none">
-              <p className="text-slate-400 text-[11px] font-black uppercase tracking-[0.3em] mb-4 animate-pulse">Toque em um astro e descubra sua mensagem</p>
-            </div>
+            
             {/* <div className="absolute bottom-11 left-1/2 -translate-x-1/2 text-center z-10 w-full px-6 pointer-events-none">
               <p className="text-slate-400 text-[11px] font-black uppercase tracking-[0.3em] mb-4 animate-pulse">Clique em uma estrela para ver a mensagem</p>
               <button onClick={() => setIsPurchaseModalOpen(true)} className="animate-pulse pointer-events-auto bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-black px-6 py-3 rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all text-xs tracking-[0.2em] flex items-center gap-3 mx-auto">
@@ -852,83 +943,176 @@ const App: React.FC = () => {
               }} />
             </div>
 
+            <div className="absolute bottom-20 left-1/2 -translate-x-1/2 text-center z-30 w-full px-6 pointer-events-none">
+              <p className="text-slate-400 text-[11px] font-black uppercase tracking-[0.3em] mb-4 animate-pulse">Toque em um astro e descubra sua mensagem</p>
+            </div>
+
             {/* Multimodal Purchase Modal */}
-            <Modal isOpen={isPurchaseModalOpen} onClose={() => setIsPurchaseModalOpen(false)} title="Nova Reivindicação">
-              <div className="space-y-6">
-                <div className="flex gap-2 p-1 bg-slate-800 rounded-2xl border border-white/5">
-                  {(['star', 'planet', 'nebula'] as AstroType[]).map(t => (
-                    <button key={t} onClick={() => setType(t)} className={`flex-1 py-4 rounded-xl flex flex-col items-center gap-1 transition-all ${type === t ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>
-                      <i className={`fa-solid ${t === 'star' ? 'fa-star' : t === 'planet' ? 'fa-earth-americas' : 'fa-cloud-sun'}`}></i>
-                      <span className="text-[9px] font-black uppercase">{t}</span>
-                      <span className="text-[8px] opacity-70">★{TYPE_PRICES[t]}</span>
+            <Modal
+              isOpen={isPurchaseModalOpen}
+              onClose={() => {closePurchaseModal()}}
+              title="Nova Reivindicação"
+            >
+              { !quote ? (
+                <div className="text-center text-slate-400 text-sm">Calculando valores...</div>
+              ) : (
+                  <div className="space-y-6">
+                    {/* O astro que será descoberto */}
+                    <div className="flex gap-2 p-1 bg-slate-800 rounded-2xl border border-white/5">
+                      {(['star', 'planet', 'nebula'] as AstroType[]).map(t => (
+                        <button key={t} onClick={() => setType(t)} className={`flex-1 py-2 rounded-xl flex flex-col items-center gap-1 transition-all ${type === t ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>
+                          <i className={`fa-solid ${t === 'star' ? 'fa-star' : t === 'planet' ? 'fa-earth-americas' : 'fa-cloud-sun'}`}></i>
+                          <span className="text-[9px] font-black uppercase">{ASTRO_NAMES[t]}</span>
+                          <span className="text-[8px] opacity-70">★{quote.type_prices[t]}</span>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Mensagem Eterna */}
+                    <div>
+                      <label className="block text-slate-500 text-[10px] font-black uppercase mb-2">Foto (opcional)</label>
+                      <input type="file" accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] ?? null;
+                          
+                          setImageFile(e.target.files?.[0] ?? null);
+
+                          if(imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+                          setImagePreviewUrl(file ? URL.createObjectURL(file) : null);
+
+                        }} className="w-full bg-slate-900 border border-white/10 rounded-xl p-4 text-white text-sm h-10 focus:ring-1 focus:ring-indigo-500 outline-none" />
+                      {imagePreviewUrl && (
+                        <div className="mt-2">
+                          {/* Botão remover */}
+                          <button onClick={() => {
+                            setImageFile(null);
+                            if(imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+                            setImagePreviewUrl(null);
+                          }} className="text-red-500 text-xs underline mb-1">Remover Imagem</button>
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-slate-500 text-[10px] font-black uppercase mb-2">Mensagem Eterna</label>
+                      <textarea value={msg} onChange={e => setMsg(e.target.value)} placeholder="O que você deseja transmitir ao firmamento?" className="w-full bg-slate-900 border border-white/10 rounded-xl p-4 text-white text-sm h-24 focus:ring-1 focus:ring-indigo-500 outline-none resize-none" />
+                    </div>
+                    { pendingCoords && (   
+                      <>             
+                        <div className="grid grid-cols-2 gap-2">
+                          {/* Exibir a coordenada selecionada usando o pendingCoords e informando qual região estelar ela pertence */}
+                          <div className="p-4 bg-slate-800 rounded-xl border border-white/5 text-center">
+                            <p className="text-slate-500 text-[10px] font-black uppercase mb-2">Coordenada</p>
+                            <div className="flex items-center justify-center gap-2">
+                              <p className="text-white text-sm font-black">
+                                {Math.round(quote.x)} : {Math.round(quote.y)}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="p-4 bg-slate-800 rounded-xl border border-white/5 text-center">
+                            <p className="text-slate-500 text-[10px] font-black uppercase mb-2">Região Estelar</p>
+                            <div className="flex items-center justify-center gap-2">
+                              <p className="text-white text-sm font-black">{ASTRO_AREAS[quote.area] || 'Desconhecido'}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* MINIMAPA DE LOCALIZAÇÃO */}
+                        
+                          <div className="relative w-full h-32 bg-slate-900/50 border border-white/10 rounded-xl overflow-hidden">
+                            {/* Background sutil para parecer o céu */}
+                            <div className="absolute inset-0 opacity-20 sky-gradient-v2" />
+                            
+                            {/* Linhas de grade (opcional, para guiar o olho) */}
+                            <div className="absolute inset-0 grid grid-cols-4 grid-rows-4 opacity-10">
+                              {[...Array(16)].map((_, i) => <div key={i} className="border-[0.5px] border-white" />)}
+                            </div>
+
+                            {/* O Ponto do Astro no Minimapa */}
+                            <div 
+                              className="absolute w-3 h-3 rounded-full shadow-[0_0_10px_#facc15] animate-pulse"
+                              style={{ 
+                                left: `${(quote.x / SKY_W) * 100}%`, 
+                                top: `${(quote.y / SKY_H) * 100}%`,
+                                transform: 'translate(-50%, -50%)',
+                                backgroundColor: color,
+                                boxShadow: `0 0 15px ${color}`,
+                              }} 
+                            />
+                            
+                            {/* Label indicando que é um preview */}
+                            <div className="absolute bottom-2 right-2">
+                              <span className="text-[8px] text-slate-500 font-black uppercase tracking-widest">Localização no Firmamento</span>
+                            </div>
+                          </div>
+                      </>
+                    )}
+
+                    <div className="grid grid-cols-5 gap-3">
+                      {ASTRO_COLORS.map(c => <button key={c} onClick={() => setColor(c)} className={`h-8 rounded-lg transition-all ${color === c ? 'ring-2 ring-white scale-110 shadow-lg' : 'opacity-40 hover:opacity-100'}`} style={{backgroundColor: c}} />)}
+                    </div>
+                    {user.balance >= calculateFrontendPrice(quote, type) && (
+                      <button onClick={handlePurchase} className="w-full bg-yellow-400 text-slate-950 font-black py-4 rounded-xl shadow-xl transition-all uppercase tracking-widest text-xs">Confirmar Reivindicação (★ {calculateFrontendPrice(quote, type)})</button>
+                    )}
+                    
+                    {user.balance < calculateFrontendPrice(quote, type) && (
+                      <p className="text-center w-full bg-yellow-400 bg-opacity-50 text-slate-950 font-black py-4 rounded-xl shadow-xl transition-all uppercase tracking-widest text-xs">Saldo insuficiente (★ {calculateFrontendPrice(quote, type)})</p>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setIsPreviewOpen(true)}
+                      disabled={!pendingCoords}
+                      className="w-full bg-slate-800 hover:bg-slate-700 text-white font-black py-3 rounded-xl
+                                transition-all uppercase tracking-widest border border-white10 text-xs"
+                    >
+                      <i className="fa-solid fa-eye mr-2"></i>
+                      Prévia da Mensagem
                     </button>
-                  ))}
-                </div>
-                <div>
-                  <label className="block text-slate-500 text-[10px] font-black uppercase mb-2">Mensagem Eterna</label>
-                  <textarea value={msg} onChange={e => setMsg(e.target.value)} placeholder="O que você deseja transmitir ao firmamento?" className="w-full bg-slate-900 border border-white/10 rounded-xl p-4 text-white text-sm h-24 focus:ring-1 focus:ring-indigo-500 outline-none resize-none" />
-                </div>
-                { pendingCoords && (   
-                  <>             
-                <div className="grid grid-cols-2 gap-2">
-                  {/* Exibir a coordenada selecionada usando o pendingCoords e informando qual região estelar ela pertence */}
-                  <div className="p-4 bg-slate-800 rounded-xl border border-white/5 text-center">
-                    <p className="text-slate-500 text-[10px] font-black uppercase mb-2">Coordenada</p>
-                    <div className="flex items-center justify-center gap-2">
-                      <p className="text-white text-sm font-black">
-                        {pendingCoords?.x.toFixed(2)} : {pendingCoords?.y.toFixed(2)}
-                      </p>
-                    </div>
                   </div>
-                  <div className="p-4 bg-slate-800 rounded-xl border border-white/5 text-center">
-                    <p className="text-slate-500 text-[10px] font-black uppercase mb-2">Região Estelar</p>
-                    <div className="flex items-center justify-center gap-2">
-                      <p className="text-white text-sm font-black">{getStarRegion(pendingCoords?.x, pendingCoords?.y)}</p>
-                    </div>
-                  </div>
-                  
-                </div>
+              )}
+            </Modal>
 
-                {/* MINIMAPA DE LOCALIZAÇÃO */}
-                
-                  <div className="relative w-full h-32 bg-slate-900/50 border border-white/10 rounded-xl overflow-hidden">
-                    {/* Background sutil para parecer o céu */}
-                    <div className="absolute inset-0 opacity-20 sky-gradient-v2" />
-                    
-                    {/* Linhas de grade (opcional, para guiar o olho) */}
-                    <div className="absolute inset-0 grid grid-cols-4 grid-rows-4 opacity-10">
-                      {[...Array(16)].map((_, i) => <div key={i} className="border-[0.5px] border-white" />)}
-                    </div>
-
-                    {/* O Ponto do Astro no Minimapa */}
-                    <div 
-                      className="absolute w-3 h-3 bg-yellow-400 rounded-full shadow-[0_0_10px_#facc15] animate-pulse"
-                      style={{ 
-                        left: `${(pendingCoords.x / SKY_W) * 100}%`, 
-                        top: `${(pendingCoords.y / SKY_H) * 100}%`,
-                        transform: 'translate(-50%, -50%)'
-                      }} 
+            <Modal
+              isOpen={isPreviewOpen}
+              onClose={() => setIsPreviewOpen(false)}
+              title="Prévia do Astro"
+            >
+              {previewAstro && (
+                <div className="animate-entrance backdrop-blur-sm text-center py-6">
+                  <div className="w-24 h-24 mx-auto mb-6 flex items-center justify-center relative">
+                    <div
+                      className="absolute inset-0 rounded-full blur-3xl opacity-30"
+                      style={{ backgroundColor: previewAstro.color }}
                     />
-                    
-                    {/* Label indicando que é um preview */}
-                    <div className="absolute bottom-2 right-2">
-                      <span className="text-[8px] text-slate-500 font-black uppercase tracking-widest">Localização no Firmamento</span>
+                    <div
+                      className="w-14 h-14 rounded-full relative z-10 flex items-center justify-center modal-star-anim shadow-2xl"
+                      style={{
+                        backgroundColor: color,
+                        boxShadow: `0 0 50px #${color}`,
+                      }}
+                    >
+                      <div className="absolute inset-0 rounded-full bg-white30 blur-2px" />
                     </div>
                   </div>
-                  </>
-                )}
 
-                <div className="grid grid-cols-5 gap-3">
-                  {ASTRO_COLORS.map(c => <button key={c} onClick={() => setColor(c)} className={`h-8 rounded-lg transition-all ${color === c ? 'ring-2 ring-white scale-110 shadow-lg' : 'opacity-40 hover:opacity-100'}`} style={{backgroundColor: c}} />)}
+                  {imagePreviewUrl && (
+                    <img
+                      src={imagePreviewUrl}
+                      alt="Imagem do astro (prévia)"
+                      className="w-full max-h-64 object-cover rounded-2xl border border-white10 mb-6"
+                    />
+                  )}
+
+                  <p className="text-2xl text-white font-serif italic leading-relaxed px-4">
+                    {msg}
+                  </p>
+
+                  <div className="mt-8 pt-6 border-t border-white/5 space-y-1">
+                    <p className="text-10px text-indigo-400 font-mono uppercase tracking-0.2em">RA 00h 00m</p>
+                    <p className="text-9px text-slate-500 font-bold uppercase tracking-widest">Observado por {previewAstro.user_name}</p>
+                  </div>
                 </div>
-                {user.balance >= calculateFrontendPrice(pendingCoords?.x, pendingCoords?.y, type) && (
-                  <button onClick={handlePurchase} className="w-full bg-yellow-400 text-slate-950 font-black py-4 rounded-xl shadow-xl transition-all uppercase tracking-widest text-xs">Confirmar Reivindicação (★ {calculateFrontendPrice(pendingCoords?.x, pendingCoords?.y, type)})</button>
-                )}
-                
-                {user.balance < calculateFrontendPrice(pendingCoords?.x, pendingCoords?.y, type) && (
-                  <p className="text-center w-full bg-yellow-400 bg-opacity-50 text-slate-950 font-black py-4 rounded-xl shadow-xl transition-all uppercase tracking-widest text-xs">Saldo insuficiente (★ {calculateFrontendPrice(pendingCoords?.x, pendingCoords?.y, type)})</p>
-                )}
-              </div>
+              )}
             </Modal>
 
             {/* Astro Details Modal */}
@@ -940,6 +1124,15 @@ const App: React.FC = () => {
                       <div className="absolute inset-0 rounded-full bg-white/30 blur-[2px]" />
                   </div>
                 </div>
+
+                {selectedAstro?.image_url && (
+                  <img
+                    src={selectedAstro.image_url}
+                    alt="Imagem do astro"
+                    className="w-full max-h-80 object-cover rounded-2xl border border-white10 mt-6"
+                  />
+                )}
+
                 <p className="text-2xl text-white font-serif italic leading-relaxed px-4">"{selectedAstro?.message}"</p>
                 <div className="mt-8 pt-6 border-t border-white/5 space-y-1">
                   <p className="text-[10px] text-indigo-400 font-mono uppercase tracking-[0.2em]">{selectedAstro?.coordinate}</p>

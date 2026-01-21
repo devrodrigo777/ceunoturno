@@ -21,6 +21,7 @@ export interface Astro {
   y: number; // Pixels in 3000x2000
   coordinate: string;
   created_at: number;
+  image_url?: string | null;
 }
 
 export interface User {
