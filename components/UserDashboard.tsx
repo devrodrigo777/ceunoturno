@@ -8,10 +8,12 @@ interface DashboardProps {
   myAstros: any[];
   onLogout: () => void;
   onFocusAstro: (x: number, y: number) => void;
+  onAbout: () => void;
+  onTerms: () => void;
 }
 
 const UserDashboard: React.FC<DashboardProps> = ({ 
-  isOpen, onClose, user, credits, myAstros, onAbout, onLogout, onFocusAstro 
+  isOpen, onClose, user, credits, myAstros, onAbout, onLogout, onFocusAstro, onTerms
 }) => {
     
   return (
@@ -80,6 +82,9 @@ const UserDashboard: React.FC<DashboardProps> = ({
           <div className="mt-auto pt-6 border-t border-white/5 space-y-4">
             <button onClick={onAbout} className="w-full text-left text-slate-400 hover:text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-3">
               <i className="fa-solid fa-circle-info"></i> Sobre o Projeto
+            </button>
+            <button onClick={onTerms} className="w-full text-left text-slate-400 hover:text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-3">
+              <i className="fa-solid fa-circle-info"></i> Termos  de Uso
             </button>
             <button onClick={onLogout} className="w-full text-left text-red-400/70 hover:text-red-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-3 transition-colors">
               <i className="fa-solid fa-right-from-bracket"></i> Encerrar Sessão

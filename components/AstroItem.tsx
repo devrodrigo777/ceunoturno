@@ -4,26 +4,45 @@ import { Astro } from '../types';
 interface AstroItemProps {
   astro: Astro;
   onClick: (astro: Astro) => void;
+  pulseFxAt?: number;
 }
 
-const AstroItem: React.FC<AstroItemProps> = ({ astro, onClick }) => {
+const AstroItem: React.FC<AstroItemProps> = ({ astro, onClick, pulseFxAt }) => {
   const duration = React.useMemo(() => (Math.random() * 3 + 2).toFixed(2) + 's', []);
   const fadeInScale = "animate-[scaleIn_0.5s_ease-out]";
   // Verifica se o astro foi criado nos últimos 3 segundos
   const isNew = new Date().getTime() - new Date(astro.created_at).getTime() < 3000;
+  // const isPulseFx = pulseFxAt && Date.now() - pulseFxAt < 900;
+  const isPulseFx = !!pulseFxAt && Date.now() - pulseFxAt < 1200;
 
   astro.size = astro.size || 100;
   // console.log(astro);
   return (
     <div
       onClick={() => onClick(astro)}
-      className={`absolute cursor-pointer group flex items-center justify-center -translate-x-1/2 -translate-y-1/2 ${isNew ? 'animate-birth' : ''}`}
+      className={`absolute cursor-pointer group flex items-center justify-center -translate-x-1/2 -translate-y-1/2 ${isPulseFx ? 'animate-pulseShock' : ''} ${isNew ? 'animate-birth' : ''}`}
       style={{
         left: astro.x,
         top: astro.y,
       }}
       
     >
+      {isPulseFx && (
+        <>
+          <div
+            className="shockwave-core"
+            style={{ filter: `drop-shadow(0 0 12px ${astro.color}66)` }}
+          />
+          <div
+            className="shockwave-ring"
+            style={{ borderColor: `${astro.color}AA` }}
+          />
+          <div
+            className="shockwave-ring shockwave-ring--soft"
+            style={{ borderColor: `${astro.color}55` }}
+          />
+        </>
+      )}
       <div 
         className={`${astro.type === 'star' ? 'twinkle-anim' : ''} relative flex items-center justify-center`}
         style={{ '--duration': duration } as React.CSSProperties}
@@ -37,6 +56,16 @@ const AstroItem: React.FC<AstroItemProps> = ({ astro, onClick }) => {
             backgroundColor: astro.color,
           }}
         />
+
+        {(astro.pulses ?? 0) >= 10 && (
+        <div
+          className="prestige-ring"
+          style={{
+            borderColor: `${astro.color}44`,
+            boxShadow: `0 0 22px ${astro.color}15, 0 0 60px ${astro.color}60`,
+          }}
+        />
+      )}
 
         {/* Planet Ring */}
         {astro.type === 'planet' && (

@@ -22,6 +22,8 @@ export interface Astro {
   coordinate: string;
   created_at: number;
   image_url?: string | null;
+  pulses?: number;
+  views?: number;
 }
 
 export interface User {

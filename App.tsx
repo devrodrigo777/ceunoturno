@@ -10,6 +10,7 @@ import { supabase } from './services/supabaseClient';
 import FullscreenMonitor from './components/FullScreenMonitor';
 import UserDashboard from './components/UserDashboard';
 import { Toaster, toast } from 'sonner';
+import ModalTermos from './components/ModalTermos';
 
 const SKY_W = 4000;
 const SKY_H = 3000;
@@ -23,13 +24,17 @@ const MIN_ASTRO_DISTANCE = 120; // Distância mínima de segurança entre astros
 const App: React.FC = () => {
   const [astros, setAstros] = useState<Astro[]>(INITIAL_ASTROS);
   const [user, setUser] = useState<User>({ id: 'u1', name: 'Explorador', balance: 2500 });
-  const [selectedAstro, setSelectedAstro] = useState<Astro | null>(null);
+  // const [selectedAstro, setSelectedAstro] = useState<Astro | null>(null);
+  const [selectedAstroId, setSelectedAstroId] = useState<string | null>(null);
   const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
   const [quote, setQuote] = useState<any>(null);
   const [showIntro, setShowIntro] = useState(false);
 
   // Modal Sobre State
   const [isModalSobreOpen, setIsModalSobreOpen] = useState(false);
+  // Modal Termos State
+  const [isModalTermosOpen, setIsModalTermosOpen] = useState(false);
+  // Modal Sobre State
   const [modalAberto, setModalAberto] = useState(false);
 
   // Click position marker
@@ -80,6 +85,9 @@ const App: React.FC = () => {
     }
   : null;
 
+  const selectedAstro = selectedAstroId
+  ? astros.find(a => a.id === selectedAstroId) ?? null
+  : null;
 
   useEffect(() => {
     sessionUserIdRef.current = session?.user?.id ?? null;
@@ -114,6 +122,48 @@ const App: React.FC = () => {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const [isPulsing, setIsPulsing] = useState(false);
+  const [pulseFx, setPulseFx] = useState<Record<string, number>>({});
+
+  const handlePulse = async () => {
+    if (!session?.user) return toast.error("Precisas de estar logado!");
+    if (!selectedAstro) return;
+
+    setIsPulsing(true);
+    try {
+      const astroId = selectedAstro.id;
+
+      // fecha o modal IMEDIATO como você pediu
+      setSelectedAstroId(null);
+
+      setTimeout(async () => {
+        const { error } = await supabase.rpc("pulse_astro", { p_astro_id: astroId });
+        if (error) throw new Error(error.message);  
+      }, 300)
+      
+
+      // não precisa setAstros: o realtime UPDATE já vai chegar e atualizar o mapa [file:1]
+      // seu saldo também atualiza via realtime do profiles [file:1]
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setIsPulsing(false);
+    }
+  };
+
+  const handleShare = async () => {
+    if (!selectedAstro) return;
+    const url = `${window.location.origin}/?astro=${selectedAstro.id}`;
+
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copiado!");
+    } catch {
+      toast.error("Não foi possível copiar o link.");
+    }
+  };
+
 
   // Helper para limpar imagens quando fecha o modal
   const resetImage = () => {
@@ -165,6 +215,25 @@ const App: React.FC = () => {
 
 
   //#region Captura dos Astros via DB
+
+  // Abrir astros destacados com o modal aberto
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const astroId = params.get("astro");
+    if (!astroId) return;
+    if (!astros.length) return;
+
+    const astro = astros.find(a => a.id === astroId);
+    if (!astro) return;
+
+    // foca no astro (você já faz isso em outros pontos usando targetOff/currentZoom) [file:1]
+    targetOff.current = {
+      x: -astro.x * currentZoom.current + window.innerWidth / 2,
+      y: -astro.y * currentZoom.current + window.innerHeight / 2,
+    };
+
+    setSelectedAstroId(astro.id); // abre modal [file:1]
+  }, [astros]);
   
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -270,7 +339,7 @@ const App: React.FC = () => {
           //   return prevUser;
           // });
           let userId = sessionUserIdRef.current;
-          console.log(userId);
+          console.log("EVENTO: " + eventType);
           if (eventType === 'INSERT') {
             const novoAstro = payload.new as Astro;
             setAstros((prev) => {
@@ -316,11 +385,24 @@ const App: React.FC = () => {
                 // audio.play().catch(() => {}); // Ignora erro se browser bloquear som
             }
           }
-
+          console.log(eventType);
           if (eventType === 'UPDATE') {
-            setAstros((prev) => 
-              prev.map((astro) => (astro.id === newRow.id ? (newRow as Astro) : astro))
-            );
+            const updated = newRow as Astro;
+
+            console.log("UPDATE:", updated.id, "views:", updated.views, "pulses:", updated.pulses);
+            setAstros(prev => {
+              const prevAstro = prev.find(a => a.id === updated.id);
+              const prevP = prevAstro?.pulses ?? 0;
+              const nextP = updated.pulses ?? 0;
+
+              if (nextP > prevP) {
+                setPulseFx(fx => ({ ...fx, [updated.id]: Date.now() }));
+                // opcional somzinho aqui, como você já faz no INSERT [file:1]
+                // new Audio("/sounds/pulse.mp3").play().catch(() => {});
+              }
+
+              return prev.map(a => (a.id === updated.id ? updated : a));
+            });
           }
 
           if (eventType === 'DELETE') {
@@ -452,6 +534,7 @@ const App: React.FC = () => {
   const lastMousePos = useRef({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const pinchDist = useRef<number | null>(null);
+  const viewedAstrosRef = useRef<Set<string>>(new Set());
 
   
 
@@ -720,6 +803,19 @@ const App: React.FC = () => {
     // setIsDashboardOpen(false);
   };
 
+  const openAstroModal = async (astro: Astro) => {
+    setSelectedAstroId(astro.id);
+
+    if (viewedAstrosRef.current.has(astro.id)) return;
+    viewedAstrosRef.current.add(astro.id);
+
+    try {
+      await supabase.rpc("register_astro_view", { p_astro_id: astro.id });
+    } catch {
+      // silencioso: view é métrica, não pode travar UX
+    }
+};
+
   const renderConstellationLines = () => {
   const lines: React.ReactNode[] = [];
   const MAX_CONSTELLATION_DIST = 350; // Distância máxima para formar uma linha
@@ -772,6 +868,7 @@ const App: React.FC = () => {
         isOpen={isDashboardOpen}
         onClose={() => setIsDashboardOpen(false)}
         onAbout={() => { setIsDashboardOpen(false);setIsModalSobreOpen(true); setModalAberto(true); }}
+        onTerms={() => { setIsDashboardOpen(false);setIsModalTermosOpen(true); setModalAberto(false); }}
         onFocusAstro={(astro_x, astro_y) => {
           targetOff.current = { x: -(astro_x * currentZoom.current) + window.innerWidth/2, y: -(astro_y * currentZoom.current) + window.innerHeight/2 };
           setIsDashboardOpen(false);
@@ -882,7 +979,14 @@ const App: React.FC = () => {
                 <span className="px-5 py-2 rounded-full border border-white/10 bg-black/30 text-[10px] text-white font-black tracking-[0.4em] uppercase">Horizonte Oeste</span>
               </div>
 
-              {astros.map(a => <AstroItem key={a.id} astro={a} onClick={ () => { setSelectedAstro(a); setErrorMarker(null); }} />)}
+              {astros.map(a =>
+                <AstroItem
+                  key={a.id}
+                  astro={a}
+                  onClick={ () => { setErrorMarker(null); openAstroModal(a); setSelectedAstroId(a.id); } }
+                  pulseFxAt={pulseFx[a.id]}
+                />
+                )}
             </div>
 
             
@@ -1111,12 +1215,28 @@ const App: React.FC = () => {
                     <p className="text-10px text-indigo-400 font-mono uppercase tracking-0.2em">RA 00h 00m</p>
                     <p className="text-9px text-slate-500 font-bold uppercase tracking-widest">Observado por {previewAstro.user_name}</p>
                   </div>
+
+                  <div className="mt-4 flex items-center justify-between gap-6 text-10px font-black uppercase tracking-widest text-slate-400">
+                    <div className="flex items-center gap-2">
+                      <i className="fa-solid fa-eye text-indigo-400" />
+                      <span>0</span>
+                      <span className="text-slate-500 font-bold">Visualizações</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <i className="fa-solid fa-bolt-lightning text-yellow-400" />
+                      <span>0</span>
+                      <span className="text-slate-500 font-bold">Pulsos</span>
+                    </div>
+                  </div>
+
+                  
                 </div>
               )}
             </Modal>
 
             {/* Astro Details Modal */}
-            <Modal isOpen={!!selectedAstro} onClose={() => setSelectedAstro(null)}>
+            <Modal isOpen={!!selectedAstro} onClose={() => {setSelectedAstroId(null);}}>
               <div className="animate-entrance backdrop-blur-sm text-center py-6">
                 <div className="w-24 h-24 mx-auto mb-8 flex items-center justify-center relative">
                   <div className="absolute inset-0 rounded-full blur-3xl opacity-30" style={{backgroundColor: selectedAstro?.color}} />
@@ -1138,14 +1258,64 @@ const App: React.FC = () => {
                   <p className="text-[10px] text-indigo-400 font-mono uppercase tracking-[0.2em]">{selectedAstro?.coordinate}</p>
                   <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Observado por {selectedAstro?.user_name}</p>
                 </div>
+
+                <div className="mt-8 grid grid-cols-5 gap-3">
+                  <button
+                    onClick={handlePulse}
+                    disabled={!session?.user || isPulsing}
+                    className="col-span-2 bg-yellow-400 hover:bg-yellow-300 disabled:bg-slate-800
+                              text-slate-950 font-black py-4 rounded-xl uppercase tracking-widest text-sm
+                              flex items-center justify-center gap-2"
+                  >
+                    {isPulsing ? "Pulsando..." : "Pulsar"} <span>30<i className="fa-solid fa-star" /></span>
+                  </button>
+
+                  <button
+                    onClick={handleShare}
+                    className="col-span-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 rounded-xl
+                              uppercase tracking-widest text-10px flex items-center justify-center gap-2"
+                  >
+                    <i className="fa-solid fa-share-nodes" />
+                    Compartilhar
+                  </button>
+                </div>
+
+                {session?.user && (
+                  <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-3">
+                    Pulsar custa 30 Energias Estelares.
+                  </p>
+                )}
+
+                <div className="mt-4 flex items-center justify-between gap-6 text-10px font-black uppercase tracking-widest text-slate-400">
+                    <div className="flex items-center gap-2">
+                      <i className="fa-solid fa-eye text-indigo-400" />
+                      <span>{selectedAstro?.views ?? 0}</span>
+                      <span className="text-slate-500 font-bold">Visualizações</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <i className="fa-solid fa-bolt-lightning text-yellow-400" />
+                      <span>{selectedAstro?.pulses ?? 0}</span>
+                      <span className="text-slate-500 font-bold">Pulsos</span>
+                    </div>
+                  </div>
+                
+
+
               </div>
             </Modal>
 
-            {/* O MODAL */}
-          <ModalSobre 
-            isOpen={modalAberto} 
-            onClose={() => setModalAberto(false)} 
-          />
+            {/* O MODAL SOBRE */}
+            <ModalSobre 
+              isOpen={modalAberto} 
+              onClose={() => setModalAberto(false)} 
+            />
+
+            {/* O MODAL TERMOS */}
+            <ModalTermos 
+              isOpen={isModalTermosOpen} 
+              onClose={() => setIsModalTermosOpen(false)} 
+            />
           </div>
         </>
       )}
