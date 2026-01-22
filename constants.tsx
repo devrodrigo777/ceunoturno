@@ -1,5 +1,14 @@
 import { AstroPosition } from './types';
 
+export const SKY_W = 4000,
+SKY_H = 3000,
+FRICTION = 0.9,
+LERP = 0.05,
+MIN_Z = 0.95,
+MAX_Z = 1.5,
+DRAG_SENSITIVITY = 1, // Fator para controlar a sensibilidade do arrasto
+MIN_ASTRO_DISTANCE = 120; // Distância mínima de segurança entre astros
+
 export const POSITION_PRICES = {
   [AstroPosition.ZENITH]: 500,
   [AstroPosition.HORIZON]: 300,
