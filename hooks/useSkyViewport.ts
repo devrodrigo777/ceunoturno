@@ -17,6 +17,7 @@ type Params = {
 
     // Você usa isso pra evitar iniciar drag quando clicar em botões/itens clicáveis
     isBlockedTarget?: (target: HTMLElement) => boolean;
+    isBlocked: boolean;
 }
 
 export function useSkyViewport({
@@ -29,6 +30,7 @@ export function useSkyViewport({
     minZ = 0.95,
     maxZ = 1.5,
     dragSensitivity = 1,
+    isBlocked = false,
     isBlockedTarget = (target) =>
         !!target.closest(".clickable") || !!target.closest("button"),
 }: Params) {
@@ -111,13 +113,19 @@ export function useSkyViewport({
 
     useEffect(() => {
         const wheel = (e: WheelEvent) => {
+            const target = e.target as HTMLElement | null;
             e.preventDefault();
+
+            if (isBlocked) return;
+            
+            if (target?.closest(".modal-content") || target?.closest("[data-modal]")) return;
+
             handleZoom(-e.deltaY * 0.001, e.clientX, e.clientY);
         };
 
         window.addEventListener('wheel', wheel, { passive: false });
         return () => window.removeEventListener('wheel', wheel);
-    }, [handleZoom]);
+    }, [handleZoom, isBlocked, isBlockedTarget]);
 
     const onStart = useCallback(
         (cx: number, cy: number, target: HTMLElement) => {

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Astro } from "../types";
 
 import SkyScene from "./SkyScene";
@@ -152,6 +152,7 @@ const SkyViewport: React.FC<Props> = ({
   isMapBlocked,
 }) => {
   return (
+    <>
     <div
       className="animate-entrance relative w-dvw h-dvh sky-gradient-v2 overflow-hidden select-none"
       onMouseDown={(e) => {
@@ -189,6 +190,7 @@ const SkyViewport: React.FC<Props> = ({
         }
       }}
     >
+    
       <SkyScene
         offset={offset}
         zoom={zoom}
@@ -246,6 +248,21 @@ const SkyViewport: React.FC<Props> = ({
 
       {/* Minimap for Navigation */}
       <div className="fixed bottom-6 right-6 w-36 h-24 bg-black/60 border border-white/10 rounded-xl backdrop-blur-md overflow-hidden z-20 pointer-events-none shadow-2xl">
+      {/* Dots dos astros */}
+      {astros.map((a) => (
+        <div
+          key={a.id}
+          className="absolute rounded-full bg-white/80"
+          style={{
+            left: `${(a.x / SKY_W) * 100}%`,
+            top: `${(a.y / SKY_H) * 100}%`,
+            transform: "translate(-50%, -50%)",
+            width: `2px`,
+            height: `2px`,
+            backgroundColor: `${a.color}`, // Define a cor do cia.color,
+          }}
+        />
+      ))}
         <div
           className="absolute bg-white/20 border border-white/40 rounded-sm"
           style={{
@@ -308,6 +325,7 @@ const SkyViewport: React.FC<Props> = ({
       {/* O MODAL TERMOS */}
       <ModalTermos isOpen={isModalTermosOpen} onClose={closeModalTermos} />
     </div>
+    </>
   );
 };
 

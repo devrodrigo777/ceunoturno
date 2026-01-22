@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 // import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -11,9 +11,9 @@ const ModalSobre: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[100] flex items-center overflow-y-scroll justify-center p-4 bg-black/70 backdrop-blur-sm">
       {/* Container do Modal */}
-      <div className="relative max-w-2xl w-full bg-slate-900/80 border border-blue-500/30 p-8 rounded-2xl shadow-2xl backdrop-blur-md overflow-hidden">
+      <div data-modal className="relative max-w-2xl w-full max-h-[85vh] bg-slate-900/80 border border-blue-500/30 p-8 rounded-2xl shadow-2xl backdrop-blur-md overflow-y-auto modal-content">
         
         {/* Detalhe decorativo: Brilho Estelar */}
         <div className="absolute -top-24 -left-24 w-48 h-48 bg-blue-600/20 rounded-full blur-3xl"></div>
@@ -37,14 +37,30 @@ const ModalSobre: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) 
           </header>
 
           <section className="space-y-4 leading-relaxed font-light">
-            <p>
-              O <strong>Céu Noturno</strong> é sobre um mapa estelar interativo e colaborativo. Cada ponto de luz que você vê foi "reivindicado" por alguém, tornando-se uma lembrança eterna no nosso universo digital.
+            <p className="text-sm text-slate-400">
+              O <strong>Céu Noturno</strong> é sobre um mapa estelar interativo e colaborativo. Cada astro tem uma mensagem, uma promessa, uma lembrança ou um desejo, tornando-se uma lembrança eterna no nosso universo digital.
             </p>
             
             <div>
               <h3 className="text-blue-400 font-medium mb-1 italic">Qual foi a inspiração?</h3>
               <p className="text-sm text-slate-400">
                 Inspirado na imensidão do cosmos e na vontade humana de deixar uma marca. Queríamos criar um lugar onde mensagens, nomes e datas pudessem brilhar para sempre, longe do ruído das redes sociais tradicionais. É uma cápsula do tempo visual.
+              </p>
+            </div>
+
+            <div>
+              <h3 className="text-blue-400 font-medium mb-1 italic">Por que vale a pena?</h3>
+              <p className="text-sm text-slate-400">
+                Aqui, cada astro é um registro eterno: uma frase, um nome, uma data, uma intenção. Em vez de postar para “performar” por alguns minutos, você marca um ponto no mapa e transforma aquilo em algo que pode ser revisitado — por você, por alguém que recebeu o link, ou por quem estiver explorando o céu.
+              </p>
+              <p className="text-sm text-slate-400 mt-2">
+                <strong class="font-weight-900 text-slate-200">Eternize momentos:</strong> aniversários, homenagens, conquistas, despedidas, promessas e recomeços ficam guardados de forma simples e bonita.
+              </p>
+              <p className="text-sm text-slate-400 mt-2">
+                <strong class="font-weight-900 text-slate-200">Compartilhe de um jeito especial:</strong> mandar um link de um astro é como entregar uma cápsula do tempo — pessoal, direto e memorável.
+              </p>
+              <p className="text-sm text-slate-400 mt-2">
+                <strong class="font-weight-900 text-slate-200">Inspire-se:</strong> ver mensagens de outras pessoas transforma o mapa em um mosaico humano: milhares de pequenas histórias brilhando juntas.
               </p>
             </div>
 

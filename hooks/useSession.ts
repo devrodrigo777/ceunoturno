@@ -11,11 +11,11 @@ export const useSession = ({ setIsLoading, setShowIntro }) => {
             setSession(currentSession);
 
             // 3. Caso a sessão exista, ele irá dar refresh, então pularemos splash e apresentação
-            if(currentSession) {
-                setIsLoading(false);
-                setShowIntro(false);
-            } else
-                setIsLoading(false);
+            // if(currentSession) {
+            //     setIsLoading(false);
+            //     setShowIntro(false);
+            // } else
+            //     setIsLoading(false);
         };
 
         initializeAuth();

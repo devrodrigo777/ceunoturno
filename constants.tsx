@@ -26,6 +26,11 @@ export const TYPE_PRICES = {
 export const ASTRO_AREAS = {
   center: "HORIZONTE",
   periphery: "PERIFERIA",
+  nadir: "NADIR",
+  zenith: "ZÊNITE",
+  horizon_east: "HORIZONTE LESTE",
+  horizon_west: "HORIZONTE OESTE",
+  horizon: "HORIZONTE"
 };
 
 export interface AstroQuote {

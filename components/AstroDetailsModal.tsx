@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import Modal from "./Modal";
 import { Astro } from "../types";
 
@@ -21,8 +21,11 @@ const AstroDetailsModal: React.FC<Props> = ({
   isPulsing,
   isLogged,
 }) => {
+  // useEffect(() => {
+  //   history.pushState({ ui: "astro" }, "");
+  // });
   return (
-    <Modal isOpen={!!selectedAstro} onClose={onClose} title="">
+    <Modal isOpen={!!selectedAstro} onClose={onClose} title="Explorando">
       {!!selectedAstro && (
         <div className="animate-entrance backdrop-blur-sm text-center py-6">
           <div className="w-24 h-24 mx-auto mb-8 flex items-center justify-center relative">
@@ -62,19 +65,18 @@ const AstroDetailsModal: React.FC<Props> = ({
             </p>
           </div>
 
-          <div className="mt-8 grid grid-cols-5 gap-3">
+          <div className="mt-8 grid grid-cols-10 gap-3">
             <button
               onClick={onPulse}
               disabled={!isLogged || isPulsing}
-              className="col-span-2 bg-yellow-400 hover:bg-yellow-300 disabled:bg-slate-800 text-slate-950 font-black py-4 rounded-xl uppercase tracking-widest text-sm flex items-center justify-center gap-2"
+              className="col-span-4 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-60 text-slate-950 font-black py-4 rounded-xl uppercase tracking-widest text-sm flex items-center justify-center gap-2"
             >
-              {isPulsing ? "Pulsando..." : "Pulsar"} <span>30</span>
-              <i className="fa-solid fa-star"></i>
+              {isPulsing ? "Pulsando" : "Pulsar"}
             </button>
 
             <button
               onClick={onShare}
-              className="col-span-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 rounded-xl uppercase tracking-widest text-[10px] flex items-center justify-center gap-2"
+              className="col-span-6 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 rounded-xl uppercase tracking-widest text-sm flex items-center justify-center gap-2"
             >
               <i className="fa-solid fa-share-nodes"></i> Compartilhar
             </button>
@@ -86,7 +88,7 @@ const AstroDetailsModal: React.FC<Props> = ({
             </p>
           )}
 
-          <div className="mt-4 flex items-center justify-between gap-6 text-[10px] font-black uppercase tracking-widest text-slate-400">
+          <div className="mt-4 flex items-center justify-between gap-6 text-[12px] font-black uppercase tracking-widest text-slate-400">
             <div className="flex items-center gap-2">
               <i className="fa-solid fa-eye text-indigo-400"></i>
               <span>{selectedAstro.views ?? 0}</span>

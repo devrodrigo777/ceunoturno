@@ -14,15 +14,17 @@ import { useSkyViewport } from "./hooks/useSkyViewport";
 import { useWindowSize } from "./hooks/useWindowSize";
 import { usePurchaseFlow } from "./hooks/usePurchaseFlow";
 import SkyViewport from "./components/SkyViewport";
+import { useBackHandler } from "./hooks/useBackHandler";
+import { useShareOrCopy } from "./hooks/useShareOrCopy";
 
 const App: React.FC = () => {
   const [astros, setAstros] = useState<Astro[]>(INITIAL_ASTROS);
   const [user, setUser] = useState<User>({
-    id: "u1",
-    name: "Explorador",
-    balance: 2500,
+    id: "0",
+    name: "Explorador Desconhecido",
+    balance: 0,
   });
-  // const [selectedAstro, setSelectedAstro] = useState<Astro | null>(null);
+
   const [selectedAstroId, setSelectedAstroId] = useState<string | null>(null);
   const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
 
@@ -34,8 +36,6 @@ const App: React.FC = () => {
   const [isModalTermosOpen, setIsModalTermosOpen] = useState(false);
   // Modal Sobre State
   const [modalAberto, setModalAberto] = useState(false);
-
-  
 
   // Click position marker
   const [clickMarker, setClickMarker] = useState<{
@@ -66,10 +66,26 @@ const App: React.FC = () => {
   const [pulseFx, setPulseFx] = useState<Record<string, number>>({});
 
   const viewedAstrosRef = useRef<Set<string>>(new Set());
+  const pendingAstroIdRef = useRef<string | null>(null);
+  const handledAstroIdRef = useRef<string | null>(null);
 
   //#region Autenticação
 
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
+
+  const selectedAstro = selectedAstroId
+    ? (astros.find((a) => a.id === selectedAstroId) ?? null)
+    : null;
+
+  const isMapBlocked =
+  isPurchaseModalOpen ||
+  isPreviewOpen ||
+  !!selectedAstro ||
+  isModalSobreOpen ||
+  modalAberto ||
+  isModalTermosOpen ||
+  isDashboardOpen;
+
 
   const {
     offset, zoom, isDragging, targetOff, currentZoom, onStart, onMove,
@@ -77,9 +93,20 @@ const App: React.FC = () => {
   } = useSkyViewport({
     skyW: SKY_W, skyH: SKY_H, initialZoom: 0.7, friction: FRICTION,
     lerp: LERP, minZ: MIN_Z, maxZ: MAX_Z, dragSensitivity: DRAG_SENSITIVITY,
+    isBlocked: isMapBlocked,
     isBlockedTarget: (target) =>
-    isMapBlocked || !!target.closest(".clickable") || !!target.closest("button"),
+    !!target.closest(".clickable") || !!target.closest("button"),
   });
+
+  const openAstroDetails = (astroId: string) => {
+    setSelectedAstroId(astroId);
+
+    const url = new URL(window.location.href);
+    url.searchParams.set("astro", astroId);
+
+    history.pushState({ ui: "astro", astroId }, "", url.toString());
+  };
+
 
   /**
    * Referência para o ID do usuário da sessão atual
@@ -102,37 +129,34 @@ const App: React.FC = () => {
     currentZoom,
   });
 
-  const selectedAstro = selectedAstroId
-    ? (astros.find((a) => a.id === selectedAstroId) ?? null)
-    : null;
+  
 
-    const isMapBlocked =
-  isPurchaseModalOpen ||
-  isPreviewOpen ||
-  !!selectedAstro ||
-  isModalSobreOpen ||
-  modalAberto ||
-  isModalTermosOpen ||
-  isDashboardOpen;
+  
+
+  useEffect(() => {
+    if (isMapBlocked) stopDragging();
+  }, [isMapBlocked, stopDragging]);
 
 
   const handlePulse = async () => {
     if (!session?.user) return toast.error("Precisas de estar logado!");
     if (!selectedAstro) return;
 
+
     setIsPulsing(true);
+    
     try {
       const astroId = selectedAstro.id;
-
-      // fecha o modal IMEDIATO como você pediu
-      setSelectedAstroId(null);
-
-      setTimeout(async () => {
-        const { error } = await supabase.rpc("pulse_astro", {
-          p_astro_id: astroId,
-        });
-        if (error) throw new Error(error.message);
-      }, 300);
+      
+      // setTimeout(async () => {
+      const { error } = await supabase.rpc("pulse_astro", {
+        p_astro_id: astroId,
+      });
+      
+      if (error)
+        toast.error(error.message);
+      else
+        setSelectedAstroId(null);
 
       // não precisa setAstros: o realtime UPDATE já vai chegar e atualizar o mapa [file:1]
       // seu saldo também atualiza via realtime do profiles [file:1]
@@ -145,14 +169,18 @@ const App: React.FC = () => {
 
   const handleShare = async () => {
     if (!selectedAstro) return;
-    const url = `${window.location.origin}/?astro=${selectedAstro.id}`;
 
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.success("Link copiado!");
-    } catch {
-      toast.error("Não foi possível copiar o link.");
-    }
+    const url = `${window.location.origin}?astro=${selectedAstro.id}`;
+
+    const res = await useShareOrCopy(
+      url,
+      "Céu Noturno",
+      "Veja esse astro que eu encontrei:"
+    );
+
+    if (res.ok && res.mode === "share") toast.success("Abrindo compartilhamento...");
+    else if (res.ok && res.mode === "copy") toast.success("Link copiado!");
+    else toast.error("Não foi possível compartilhar/copiar.");
   };
 
   // Helper para limpar imagens quando fecha o modal
@@ -174,24 +202,77 @@ const App: React.FC = () => {
 
   //#region Captura dos Astros via DB
 
-  // Abrir astros destacados com o modal aberto
+  // Ler astros vindos do GET
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const astroId = params.get("astro");
     if (!astroId) return;
+
+    pendingAstroIdRef.current = astroId;
+
+    // opcional: fecha UIs já na chegada via link
+    setIsDashboardOpen(false);
+    setModalAberto(false);
+    setIsModalSobreOpen(false);
+    setIsModalTermosOpen(false);
+
+    // transforma esse link em "root" da sessão (não empilha)
+    history.replaceState({ ui: "astro-root", astroId }, "", window.location.href);
+  }, []);
+
+  // Identificar, localiar e abrir o modal
+  useEffect(() => {
+    const astroId = pendingAstroIdRef.current;
+    if (!astroId) return;
+
+    // evita reabrir em re-render
+    if (handledAstroIdRef.current === astroId) return;
+
     if (!astros.length) return;
-
     const astro = astros.find((a) => a.id === astroId);
-    if (!astro) return;
+    if (!astro) return; // pode escolher limpar a URL aqui se quiser
 
-    // foca no astro (você já faz isso em outros pontos usando targetOff/currentZoom) [file:1]
+    // viewport (se width/height ainda estiverem 0, espera)
+    if (!width || !height) return;
+
     targetOff.current = {
       x: -astro.x * currentZoom.current + width / 2,
       y: -astro.y * currentZoom.current + height / 2,
     };
 
-    setSelectedAstroId(astro.id); // abre modal [file:1]
-  }, [astros]);
+    // aqui NÃO use pushState (porque veio do link); só abre o modal
+    setSelectedAstroId(astro.id);
+
+    handledAstroIdRef.current = astroId;
+  }, [astros, width, height]);
+
+
+  // useEffect(() => {
+  //   const params = new URLSearchParams(window.location.search);
+  //   const astroId = params.get("astro");
+  //   if (!astroId) return;
+  //   if (!astros.length) return;
+  //   console.log(astros);
+  //   const astro = astros.find((a) => a.id === astroId);
+  //   if (!astro) {  
+  //     // fecha qualquer UI aberta
+  //     setIsDashboardOpen(false);
+  //     setModalAberto(false);
+  //     setIsModalSobreOpen(false);
+  //     setIsModalTermosOpen(false);
+
+  //     // marca a entrada atual como "root" sem empilhar nada
+  //     history.replaceState({ ui: "root" }, "", window.location.href);
+  //   }
+
+  //   // foca no astro (você já faz isso em outros pontos usando targetOff/currentZoom) [file:1]
+  //   targetOff.current = {
+  //     x: -astro.x * currentZoom.current + width / 2,
+  //     y: -astro.y * currentZoom.current + height / 2,
+  //   };
+
+  //   openAstroDetails(astro.id); // abre modal [file:1]
+  // }, [astros]);
 
   //#endregion
 
@@ -264,10 +345,45 @@ const App: React.FC = () => {
     }
   };
 
-  // Initial Loading Progress
+  const openDashboard = () => setIsDashboardOpen(true);
+  const closeDashboard = () => setIsDashboardOpen(false);
+
+  const openSobre = () => {
+    setIsDashboardOpen(false);
+    setModalAberto(true); // ou setIsModalSobreOpen(true)
+    history.pushState({ ui: "sobre" }, "");
+  };
+  const closeSobre = () => {
+    setModalAberto(false);
+    setIsModalSobreOpen(false); // se existir
+  };
+
+  const openTermos = () => {
+    setIsDashboardOpen(false);
+    setIsModalTermosOpen(true);
+    history.pushState({ ui: "termos" }, "");
+  };
+  const closeTermos = () => setIsModalTermosOpen(false);
+
+  const { pushDashboard, pushSobre, pushTermos } = useBackHandler({
+    isDashboardOpen,
+    isModalSobreOpen,
+    modalAberto,
+    isModalTermosOpen,
+    openDashboard,
+    closeDashboard,
+    openSobre,
+    closeSobre,
+    openTermos,
+    closeTermos,
+    closeAstroDetails: () => setSelectedAstroId(null),
+    selectedAstroId
+  });
+
+  // Progresso inicial de carregamento
   useEffect(() => {
     // 1. Simulação de carregamento de 3 segundos
-    const duration = 3000;
+    const duration = session ? 1000 : 3000;;
     const intervalTime = 100;
     const increment = 100 / (duration / intervalTime);
 
@@ -299,24 +415,34 @@ const App: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Modal intro for full screen request
-  const handleEnableFullScreen = () => {
+  // Abre o modal de pedido de Fullscreen
+  const handleEnableFullScreen = (fullScreen : boolean = true) => {
     const element = document.documentElement;
 
-    setTimeout(() => {
-      setShowIntro(false);
-    }, 1500);
+    if(fullScreen){
+      setTimeout(() => {
+        setShowIntro(false);
+      }, 1500);
 
-    if (element.requestFullscreen) {
-      element.requestFullscreen().catch((err) => console.log(err));
-    } else if ((element as any).webkitRequestFullscreen) {
-      // iOS Safari
-      (element as any).webkitRequestFullscreen();
+      if (element.requestFullscreen) {
+        element.requestFullscreen().catch((err) => console.log(err));
+      } else if ((element as any).webkitRequestFullscreen) {
+        // iOS Safari
+        (element as any).webkitRequestFullscreen();
+      } else {
+        toast.error("Seu navegador não suporta Fullscreen.");
+      }
+    } else {
+      setTimeout(() => {
+        setShowIntro(false);
+      }, 500);
     }
   };
 
   const openAstroModal = async (astro: Astro) => {
-    setSelectedAstroId(astro.id);
+    
+    openAstroDetails(astro.id);
+  
 
     if (viewedAstrosRef.current.has(astro.id)) return;
     viewedAstrosRef.current.add(astro.id);
@@ -361,22 +487,22 @@ const App: React.FC = () => {
     }
     return lines;
   }, [astros]);
-
+  
   return (
     <>
       {/* Ordem de Camadas: Splash -> Modal Fullscreen -> App */}
       {isLoading && (
         <SplashScreen
           progress={progress}
-          onComplete={() => setShowIntro(true)}
+          onComplete={() => { setShowIntro(true); setIsLoading(false); }}
         />
       )}
 
       {!session && showIntro && (
-        <FullscreenPrompt onEnter={handleEnableFullScreen} />
+        <FullscreenPrompt onEnter={(e) => { console.log(e); handleEnableFullScreen(e); }} />
       )}
 
-      {!isLoading && !showIntro && <FullscreenMonitor />}
+      {/* {!isLoading && !showIntro && <FullscreenMonitor />} */}
 
       {isDashboardOpen && (
         <UserDashboard
@@ -440,13 +566,13 @@ const App: React.FC = () => {
             onClearError={() => setErrorMarker(null)}
             onAstroClick={(astro) => {
               openAstroModal(astro);
-              setSelectedAstroId(astro.id);
+              openAstroDetails(astro.id);
             }}
             titleZoomText={`VERSÃO 0.1b • Zoom ${Math.round(zoom * 100)}%`}
             session={session}
             userBalance={user.balance}
             onLogin={handleLogin}
-            onOpenDashboard={() => setIsDashboardOpen(true)}
+            onOpenDashboard={() => pushDashboard()}
             width={width}
             height={height}
             isPurchaseModalOpen={isPurchaseModalOpen}
@@ -467,14 +593,15 @@ const App: React.FC = () => {
             setIsPreviewOpen={setIsPreviewOpen}
             previewAstro={previewAstro}
             selectedAstro={selectedAstro}
-            onCloseAstroDetails={() => setSelectedAstroId(null)}
+            onCloseAstroDetails={() => {setSelectedAstroId(null); history.pushState({ ui: "root" }, "", window.location.pathname); }}
             onPulse={handlePulse}
             onShare={handleShare}
             isPulsing={isPulsing}
             modalAberto={modalAberto}
-            closeModalSobre={() => setModalAberto(false)}
+            closeModalSobre={() => {setModalAberto(false); pushDashboard(); }}
             isModalTermosOpen={isModalTermosOpen}
-            closeModalTermos={() => setIsModalTermosOpen(false)}
+            closeModalTermos={() => {setIsModalTermosOpen(false); pushDashboard(); }}
+            isMapBlocked={isMapBlocked}
           />
         </>
       )}

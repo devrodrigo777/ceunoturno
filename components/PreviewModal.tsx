@@ -60,7 +60,7 @@ const PreviewModal: React.FC<Props> = ({
             </p>
           </div>
 
-          <div className="mt-4 flex items-center justify-between gap-6 text-[10px] font-black uppercase tracking-widest text-slate-400">
+          <div className="mt-4 flex items-center justify-between gap-6 text-[12px] font-black uppercase tracking-widest text-slate-400">
             <div className="flex items-center gap-2">
               <i className="fa-solid fa-eye text-indigo-400"></i>
               <span>0</span>

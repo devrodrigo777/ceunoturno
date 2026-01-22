@@ -3,9 +3,9 @@ import React, { useState } from 'react';
 const FullscreenPrompt: React.FC<{ onEnter: () => void }> = ({ onEnter }) => {
   const [loadingFullscreen, setLoadingFullscreen] = useState(false);
 
-  const handleEnterClick = () => {
-    setLoadingFullscreen(true);
-    onEnter();
+  const handleEnterClick = (fullscreen : boolean = true) => {
+    setLoadingFullscreen(fullscreen);
+    onEnter(fullscreen);
   };
 
   return (
@@ -19,7 +19,7 @@ const FullscreenPrompt: React.FC<{ onEnter: () => void }> = ({ onEnter }) => {
             <i className="fa-solid fa-rocket text-4xl text-yellow-400"></i>
             <h2 className="text-3xl font-black text-white uppercase tracking-tighter">
               Pronto para <br />
-              <span className="text-indigo-400 italic">Decolar?</span>
+              <span className="text-indigo-400 italic">Explorar?</span>
             </h2>
           </div>
         </div>
@@ -34,14 +34,17 @@ const FullscreenPrompt: React.FC<{ onEnter: () => void }> = ({ onEnter }) => {
           <InstructionItem 
             icon="fa-magnifying-glass-plus" 
             title="Zoom" 
-            desc="Use dois dedos (pinch) para aproximar." 
+            desc="Use dois dedos (pinça) para aproximar." 
           />
           <InstructionItem 
             icon="fa-star" 
-            title="Reivindicação" 
+            title="Descobertas" 
             desc="Toque em espaços vazios para criar astros." 
           />
         </div>
+        <p className="text-slate-500 font-medium leading-relaxed px-4 mt-2 italic">
+          Explore histórias, homenagens, objetivos, conquistas e muito mais!
+        </p>
 
         {/* Botão de Ação */}
         <div className="space-y-4">
@@ -56,14 +59,16 @@ const FullscreenPrompt: React.FC<{ onEnter: () => void }> = ({ onEnter }) => {
               </>
             ) : (
               <>
-                Iniciar Aventura <i className="fa-solid fa-expand"></i>
+                Iniciar em Tela Cheia <i className="fa-solid fa-expand"></i>
               </>
             )}
           </button>
-          
-          <p className="text-slate-500 text-[10px] font-medium leading-relaxed px-4 italic">
-            Ao clicar no botão, a aplicação será aberta em tela cheia. Isso é recomendado para uma calibração perfeita das coordenadas astronômicas."
-          </p>
+          <button 
+            onClick={() => handleEnterClick(false)}
+            className="text-slate-500 hover:text-slate-300 font-bold py-2 text-[11px] uppercase tracking-widest transition-colors"
+          >
+            Continuar em modo janela
+          </button>
         </div>
       </div>
     </div>
