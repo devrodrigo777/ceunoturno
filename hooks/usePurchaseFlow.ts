@@ -28,6 +28,8 @@ type Params = {
 
     getStarRegion: (x: number, y: number) => AstroPosition;
     getVelocity: () => Vec2;
+
+    setIsDashboardOpen:  React.Dispatch<React.SetStateAction<boolean>>;
 };
 
 export function usePurchaseFlow({
@@ -48,6 +50,7 @@ export function usePurchaseFlow({
     MIN_ASTRO_DISTANCE,
     getStarRegion,
     getVelocity,
+    setIsDashboardOpen
 }: Params) {
     const [quote, setQuote] = useState<any>(null);
 
@@ -94,13 +97,15 @@ export function usePurchaseFlow({
     }, [imagePreviewUrl]);
 
     const closePurchaseModal = useCallback(() => {
+        alert("fechou!");
         setQuote(null);
         setMsg("");
         setTitulo("");
         setPendingCoords(null);
         resetImage();
         setIsPurchaseModalOpen(false);
-    }, [resetImage, setIsPurchaseModalOpen]);
+        setIsDashboardOpen(true);
+    }, [resetImage, setIsPurchaseModalOpen, setIsDashboardOpen]);
 
     const onPickImage = useCallback(
         (file: File | null) => {

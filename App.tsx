@@ -36,6 +36,7 @@ const App: React.FC = () => {
   const [isModalTermosOpen, setIsModalTermosOpen] = useState(false);
   // Modal Sobre State
   const [modalAberto, setModalAberto] = useState(false);
+  const [isRechargeOpen, setIsRechargeOpen] = useState(false);
 
   // Click position marker
   const [clickMarker, setClickMarker] = useState<{
@@ -329,6 +330,7 @@ const App: React.FC = () => {
     MIN_ASTRO_DISTANCE,
     getStarRegion,
     getVelocity,
+    setIsDashboardOpen
   });
 
   const handleEnd = (clientX: number, clientY: number) => {
@@ -526,7 +528,12 @@ const App: React.FC = () => {
               x: -(astro_x * currentZoom.current) + width / 2,
               y: -(astro_y * currentZoom.current) + height / 2,
             };
+            currentZoom.current = 0.7;
             setIsDashboardOpen(false);
+          }}
+          onRecharge={() => {
+            setIsDashboardOpen(false);
+            setIsRechargeOpen(true);
           }}
           onLogout={handleLogout}
         />
@@ -569,7 +576,7 @@ const App: React.FC = () => {
               openAstroDetails(astro.id);
             }}
             titleZoomText={`VERSÃO 0.1b • Zoom ${Math.round(zoom * 100)}%`}
-            session={session}
+            session={session ?? null}
             userBalance={user.balance}
             onLogin={handleLogin}
             onOpenDashboard={() => pushDashboard()}
@@ -602,6 +609,14 @@ const App: React.FC = () => {
             isModalTermosOpen={isModalTermosOpen}
             closeModalTermos={() => {setIsModalTermosOpen(false); pushDashboard(); }}
             isMapBlocked={isMapBlocked}
+            isRechargeOpen={isRechargeOpen}
+              closeRecharge={() => setIsRechargeOpen(false)}
+              onOpenRecharge={() => {
+                setIsDashboardOpen(false); // opcional: fecha dashboard antes
+                setIsRechargeOpen(true);
+              }}
+              targetOff={targetOff}
+              currentZoom={currentZoom}
           />
         </>
       )}

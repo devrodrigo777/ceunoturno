@@ -61,7 +61,7 @@ const AstroDetailsModal: React.FC<Props> = ({
               {selectedAstro.coordinate}
             </p>
             <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">
-              Observado por {selectedAstro.user_name}
+              Explorado por {selectedAstro.user_name}
             </p>
           </div>
 

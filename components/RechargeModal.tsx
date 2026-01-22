@@ -1,0 +1,284 @@
+import React, { useMemo, useEffect, useState } from "react";
+import Modal from "./Modal";
+import { supabase } from "@/services/supabaseClient";
+import { toast } from "sonner";
+
+type Props = {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess?: () => void; // opcional: fechar modal, toast etc.
+};
+
+type ApiResp = {
+  topup_id: string;
+  amount_cents: number;
+  credits: number;
+  mp_payment_id?: string;
+  mp_status?: string;
+  pix?: {
+    qr_code: string | null;
+    qr_code_base64: string | null;
+  };
+};
+
+const RechargeModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
+  const [amountCents, setAmountCents] = useState<number>(1000);
+  const [loading, setLoading] = useState(false);
+  const [resp, setResp] = useState<ApiResp | null>(null);
+  const [error, setError] = useState<string>("");
+
+  const amountBRL = useMemo(
+    () => (amountCents / 100).toFixed(2),
+    [amountCents],
+  );
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Estado inicial (o que você quiser como default)
+    setAmountCents(2000);
+    setLoading(false);
+    setResp(null);
+    setError("");
+  }, [isOpen]);
+
+  async function handleCreateTopup() {
+    setError("");
+    setResp(null);
+    setLoading(true);
+
+    try {
+      // Chamada recomendada: supabase.functions.invoke (já manda Authorization/apikey)
+      const { data, error } = await supabase.functions.invoke<ApiResp>(
+        "mp-create-topup",
+        {
+          body: { amount_cents: amountCents },
+        },
+      );
+
+      if (error) toast.error(error.message);
+      if (!data) toast.error("Resposta vazia da function.");
+
+      setResp(data);
+      onSuccess?.();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Erro ao criar recarga.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleCopy(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // fallback: sem toast aqui, mas você pode integrar sonner depois
+    }
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Recarregar energias">
+      <div className="space-y-4">
+        {!resp && (
+          <>
+            <p className="text-slate-400 text-sm">
+              Selecione um valor e gere o Pix para recarregar suas Energias
+              Estelares.
+            </p>
+
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { cents: 1000, label: "R$ 10", credits: 600 },
+                { cents: 2000, label: "R$ 20", credits: 1200,bonus: 1200 },
+                { cents: 5000, label: "R$ 50", credits: 4000, bonus: 700 },
+              ].map((o) => (
+                <button
+      key={o.cents}
+      type="button"
+      disabled={loading}
+      onClick={() => setAmountCents(o.cents)}
+      className={[
+        "py-3 rounded-xl border border-white/10 font-black transition flex flex-col items-center justify-center",
+        amountCents === o.cents
+          ? "bg-indigo-600 text-white"
+          : "bg-slate-800 text-slate-200 hover:bg-slate-700",
+      ].join(" ")}
+    >
+
+      <span className="text-xs uppercase tracking-widest">{o.label}</span>
+
+      <span className="text-[10px] text-slate-300/80 font-black uppercase tracking-widest mt-1">
+        +{o.credits} energias
+      </span>
+        {o.bonus && (
+                <span className="text-[10px] text-yellow-300/80 font-black uppercase tracking-widest mt-1">
+                    +{o.bonus} bônus
+                </span>  
+        )}
+    </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCreateTopup}
+              disabled={loading}
+              className="w-full bg-yellow-400 text-slate-950 font-black py-4 rounded-xl shadow-xl transition-all uppercase tracking-widest text-xs disabled:opacity-60"
+            >
+              {loading
+                ? "Gerando Pix..."
+                : `Gerar Pix (R$ ${amountBRL.toString().replace(".", ",")})`}
+            </button>
+
+            <div className="mt-4 rounded-xl border border-white/10 bg-slate-900/40 p-4 space-y-3">
+                <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]">
+                    Tabela de custos (créditos)
+                </p>
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-3 leading-relaxed">
+                    Total do astro = preço base da área + tipo.
+                </p>
+                <div className="grid grid-cols-1 gap-3">
+                    {/* Áreas */}
+                    <div className="bg-slate-900/60 border border-white/10 rounded-xl p-3">
+                    <p className="text-[10px] text-indigo-300 font-black uppercase tracking-widest mb-2">
+                        Preço base por área
+                    </p>
+                    
+
+                    <div className="space-y-1 text-[11px] text-slate-200 font-bold">
+                        <div className="flex items-center justify-between">
+                        <span>Zênite <span className="text-slate-500">(Norte)</span></span>
+                        <span className="text-yellow-400 font-black">500 <i className="fa-solid fa-star text-[10px] text-yellow-400"></i></span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                        <span>Nadir <span className="text-slate-500">(Sul)</span></span>
+                        <span className="text-yellow-400 font-black">100 <i className="fa-solid fa-star text-[10px] text-yellow-400"></i></span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                        <span>Horizonte Leste</span>
+                        <span className="text-yellow-400 font-black">350 <i className="fa-solid fa-star text-[10px] text-yellow-400"></i></span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                        <span>Horizonte Oeste</span>
+                        <span className="text-yellow-400 font-black">350 <i className="fa-solid fa-star text-[10px] text-yellow-400"></i></span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                        <span>Horizonte <span className="text-slate-500">(Equador)</span></span>
+                        <span className="text-yellow-400 font-black">700 <i className="fa-solid fa-star text-[10px] text-yellow-400"></i></span>
+                        </div>
+                    </div>
+                    </div>
+
+                    {/* Tipos */}
+                    <div className="bg-slate-900/60 border border-white/10 rounded-xl p-3">
+                    <p className="text-[10px] text-indigo-300 font-black uppercase tracking-widest mb-2">
+                        Preço por tipo
+                    </p>
+
+                    <div className="space-y-1 text-[11px] text-slate-200 font-bold">
+                        <div className="flex items-center justify-between">
+                        <span>Estrela</span>
+                        <span className="text-yellow-400 font-black">50 <i className="fa-solid fa-star text-[10px] text-yellow-400"></i></span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                        <span>Planeta</span>
+                        <span className="text-yellow-400 font-black">+300 <i className="fa-solid fa-star text-[10px] text-yellow-400"></i></span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                        <span>Nebulosa</span>
+                        <span className="text-yellow-400 font-black">+700 <i className="fa-solid fa-star text-[10px] text-yellow-400"></i></span>
+                        </div>
+                    </div>
+                    </div>
+                    
+
+                    {/* Pulsar */}
+                    <div className="bg-slate-900/60 border border-white/10 rounded-xl p-3">
+                    <p className="text-[10px] text-indigo-300 font-black uppercase tracking-widest mb-2">
+                        Interação
+                    </p>
+
+                    <div className="flex items-center justify-between text-[11px] text-slate-200 font-bold">
+                        <span>Pulsar</span>
+                        <span className="text-yellow-400 font-black">30 <i className="fa-solid fa-star text-[10px] text-yellow-400"></i></span>
+                    </div>
+                    </div>
+                </div>
+                </div>
+
+
+          </>
+        )}
+
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 text-red-200 rounded-xl p-3 text-sm">
+            {error}
+          </div>
+        )}
+
+        {resp?.pix?.qr_code && (
+          <div className="space-y-3 bg-slate-800/60 border border-white/10 rounded-xl p-4">
+            <p className="text-slate-300 font-black text-xs uppercase tracking-widest">
+              Pagamento via Pix
+            </p>
+
+            {/* QR CODE */}
+            {resp?.pix?.qr_code_base64 ? (
+              <div className="w-full flex items-center justify-center">
+                <div className="bg-white rounded-2xl p-3 shadow-xl">
+                  <img
+                    src={`data:image/png;base64,${resp.pix.qr_code_base64}`}
+                    alt="QR Code Pix"
+                    className="w-56 h-56"
+                  />
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400">
+                QR Code indisponível. Use o copia e cola abaixo.
+              </p>
+            )}
+
+            {/* COPIA E COLA EM 1 LINHA */}
+            <div className="space-y-2">
+              <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">
+                Pix copia e cola
+              </p>
+
+              <div className="flex gap-1">
+                <input
+                  readOnly
+                  value={resp.pix.qr_code ?? ""}
+                  className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-1 py-2 text-slate-400 text-xs outline-none h-10"
+                />
+                <button
+                  type="button"
+                  className="bg-slate-700 hover:bg-slate-600 text-white font-black px-4 rounded-xl text-xs uppercase tracking-widest h-10"
+                  onClick={() => handleCopy(resp.pix!.qr_code!)}
+                >
+                  Copiar
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-black py-3 rounded-xl text-xs uppercase tracking-widest border border-white/10"
+                onClick={onClose}
+              >
+                Fechar
+              </button>
+            </div>
+
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+              Após o pagamento, o saldo atualiza automaticamente.
+            </p>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+};
+
+export default RechargeModal;

@@ -67,7 +67,7 @@ const PurchaseModal: React.FC<Props> = ({
       setMsg("");
     }
   }, [isOpen]);
-
+  
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Novo Astro - ${step==1 ? "Tipo" : "Confirmação"}`}>
       {!quote ? (
@@ -93,7 +93,7 @@ const PurchaseModal: React.FC<Props> = ({
                   <span className="text-[9px] font-black uppercase">
                     {ASTRO_NAMES[t]}
                   </span>
-                  <span className="text-[8px] opacity-70">
+                  <span className="text-[9px] opacity-70 text-yellow-400">
                     ★{quote.type_prices[t]}
                   </span>
                 </button>
@@ -121,6 +121,9 @@ const PurchaseModal: React.FC<Props> = ({
                   <div className="flex items-center justify-center gap-2">
                     <p className="text-white text-sm font-black">
                       {ASTRO_AREAS[quote.area] || "Desconhecido"}
+                      <p className="text-[10px] text-yellow-400">
+                        {quote.base_price} <i className="fa-solid fa-star"></i>
+                      </p>
                     </p>
                   </div>
                 </div>

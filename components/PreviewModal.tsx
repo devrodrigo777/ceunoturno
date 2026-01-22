@@ -56,7 +56,7 @@ const PreviewModal: React.FC<Props> = ({
               RA 00h 00m
             </p>
             <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">
-              Observado por {previewAstro.user_name}
+              Explorado por {previewAstro.user_name}
             </p>
           </div>
 

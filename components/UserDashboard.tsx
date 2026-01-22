@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import RechargeModal from './RechargeModal';
 
 interface DashboardProps {
   isOpen: boolean;
@@ -10,12 +11,12 @@ interface DashboardProps {
   onFocusAstro: (x: number, y: number) => void;
   onAbout: () => void;
   onTerms: () => void;
+  onRecharge: () => void;
 }
 
 const UserDashboard: React.FC<DashboardProps> = ({ 
-  isOpen, onClose, user, credits, myAstros, onAbout, onLogout, onFocusAstro, onTerms
+  isOpen, onClose, user, credits, myAstros, onAbout, onLogout, onFocusAstro, onTerms, onRecharge
 }) => {
-    
   return (
     <>
       {/* Overlay para fechar ao clicar fora */}
@@ -45,7 +46,8 @@ const UserDashboard: React.FC<DashboardProps> = ({
               <span className="block text-[8px] text-indigo-300 font-black uppercase tracking-[0.2em] mb-1">Saldo Disponível</span>
               <span className="text-2xl text-yellow-400 font-black">★ {credits}</span>
             </div>
-            <button className="bg-indigo-500 hover:bg-indigo-400 text-white text-[9px] font-black px-3 py-2 rounded-lg transition-all active:scale-95">
+            <button className="bg-indigo-500 hover:bg-indigo-400 text-white text-[9px] font-black px-3 py-2 rounded-lg transition-all active:scale-95"
+              onClick={onRecharge}>
               RECARREGAR
             </button>
           </div>
@@ -75,6 +77,7 @@ const UserDashboard: React.FC<DashboardProps> = ({
                   </div>
                 ))
               )}
+
             </div>
           </div>
 

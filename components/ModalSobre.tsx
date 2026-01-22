@@ -54,13 +54,13 @@ const ModalSobre: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) 
                 Aqui, cada astro é um registro eterno: uma frase, um nome, uma data, uma intenção. Em vez de postar para “performar” por alguns minutos, você marca um ponto no mapa e transforma aquilo em algo que pode ser revisitado — por você, por alguém que recebeu o link, ou por quem estiver explorando o céu.
               </p>
               <p className="text-sm text-slate-400 mt-2">
-                <strong class="font-weight-900 text-slate-200">Eternize momentos:</strong> aniversários, homenagens, conquistas, despedidas, promessas e recomeços ficam guardados de forma simples e bonita.
+                <strong className="font-weight-900 text-slate-200">Eternize momentos:</strong> aniversários, homenagens, conquistas, despedidas, promessas e recomeços ficam guardados de forma simples e bonita.
               </p>
               <p className="text-sm text-slate-400 mt-2">
-                <strong class="font-weight-900 text-slate-200">Compartilhe de um jeito especial:</strong> mandar um link de um astro é como entregar uma cápsula do tempo — pessoal, direto e memorável.
+                <strong className="font-weight-900 text-slate-200">Compartilhe de um jeito especial:</strong> mandar um link de um astro é como entregar uma cápsula do tempo — pessoal, direto e memorável.
               </p>
               <p className="text-sm text-slate-400 mt-2">
-                <strong class="font-weight-900 text-slate-200">Inspire-se:</strong> ver mensagens de outras pessoas transforma o mapa em um mosaico humano: milhares de pequenas histórias brilhando juntas.
+                <strong className="font-weight-900 text-slate-200">Inspire-se:</strong> ver mensagens de outras pessoas transforma o mapa em um mosaico humano: milhares de pequenas histórias brilhando juntas.
               </p>
             </div>
 
@@ -80,7 +80,7 @@ const ModalSobre: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) 
               onClick={onClose}
               className="px-8 py-2 bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/50 rounded-full text-blue-100 transition-all duration-300 active:scale-95"
             >
-              Voltar ao Mapa
+              Voltar
             </button>
           </footer>
         </div>
