@@ -237,6 +237,7 @@ const PurchaseModal: React.FC<Props> = ({
                 Mensagem Eterna
               </label>
               <textarea
+                maxLength={300}
                 value={msg}
                 onChange={(e) => setMsg(e.target.value)}
                 placeholder="O que você deseja transmitir ao firmamento?"

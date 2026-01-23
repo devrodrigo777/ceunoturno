@@ -236,7 +236,8 @@ const SkyViewport: React.FC<Props> = ({
         {/* Interface Overlay */}
         <div className="absolute top-6 left-6 pointer-events-none z-10">
           <h1 className="text-2xl font-black text-white tracking-tighter drop-shadow-2xl">
-            CÉU<span className="text-yellow-400 italic">NOTURNO</span>
+            {/* CÉU<span className="text-yellow-400 italic">NOTURNO</span> */}
+            <img src={"./logo.png"} alt="Céu Noturno" className="w-40" />
           </h1>
           <p className="text-[10px] text-slate-500 font-bold tracking-[0.2em] uppercase mt-1">
             {titleZoomText}

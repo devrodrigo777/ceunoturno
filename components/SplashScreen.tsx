@@ -21,9 +21,10 @@ const SplashScreen: React.FC<{ progress: number }> = ({ progress, onComplete }) 
       </div>
 
       <div className="text-center space-y-4 max-w-xs">
-        <h1 className="text-2xl font-black text-white tracking-[0.3em] uppercase">
-          Céu<span className="text-yellow-400 italic">Noturno</span>
-        </h1>
+  
+        <div className="flex items-center justify-center gap-4">
+          <img src={"./logo.png"} alt="Céu Noturno" className="w-60" />
+          </div>
         
         {/* Barra de Progresso */}
         <div className="w-full h-1 bg-slate-900 rounded-full overflow-hidden border border-white/5">
