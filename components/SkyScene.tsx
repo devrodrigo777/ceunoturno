@@ -18,9 +18,11 @@ type Props = {
 
   clickMarker: Vec2 | null;
   errorMarker: Vec2 | null;
+  loginMarker: Vec2 | null;
 
   onAstroClick: (astro: Astro) => void;
   onClearError: () => void;
+  errorCircle: React.FC<any> | null;
 };
 
 const SkyScene: React.FC<Props> = ({
@@ -33,8 +35,10 @@ const SkyScene: React.FC<Props> = ({
   pulseFx,
   clickMarker,
   errorMarker,
+  loginMarker,
   onAstroClick,
   onClearError,
+  errorCircle,
 }) => {
   return (
     <div
@@ -51,6 +55,44 @@ const SkyScene: React.FC<Props> = ({
       >
         {constellationLines}
       </svg>
+
+      {errorCircle && (
+        <div
+          className="pointer-events-none absolute z-50"
+          style={{
+            left: errorCircle.x,
+            top: errorCircle.y,
+            width: errorCircle.r * 2,
+            height: errorCircle.r * 2,
+            transform: "translate(-50%, -50%)",
+            borderRadius: "9999px",
+            border: "2px dashed rgba(255, 255, 255, 0.4)", // red-500
+            boxShadow: "0 0 25px rgba(255,255,255,0.1)",
+            background: "rgba(255,255,255,0.06)",
+          }}
+        />
+      )}
+
+      {/* Badge de Info (login necessário) */}
+      {loginMarker && (
+        <div
+          className="absolute pointer-events-none z-50 flex flex-col items-center gap-2"
+          style={{
+            left: loginMarker.x,
+            top: loginMarker.y,
+            transform: "translate(-50%, -50%)",
+          }}
+        >
+
+          {/* Ícone e Texto */}
+          <div className="bg-green-400/50 backdrop-blur-md px-3 py-1.5 rounded-lg border border-red-400 shadow-xl flex items-center gap-2 animate-bounce">
+            <i className="fa-solid fa-circle-exclamation text-white text-xs"></i>
+            <span className="text-white font-black text-[9px] uppercase tracking-tighter whitespace-nowrap">
+              Acesse Para Criar
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Badge de Erro (Too Close) */}
       {errorMarker && (

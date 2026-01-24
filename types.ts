@@ -24,6 +24,16 @@ export interface Astro {
   image_url?: string | null;
   pulses?: number;
   views?: number;
+
+  starmapEnabled?: boolean;
+  starmapTitle?: string | null;
+  starmapLocationLabel?: string | null;
+  starmapLat?: number | null;
+  starmapLng?: number | null;
+  starmapDatetime?: string | null; // ISO
+  starmapHideTime?: boolean | null;
+  starmap_lat?: number | null;
+  starmap_lng?: number | null;
 }
 
 export interface User {

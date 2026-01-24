@@ -31,8 +31,11 @@ type Props = {
   pulseFx: Record<string, number>;
   clickMarker: Vec2 | null;
   errorMarker: Vec2 | null;
+  loginMarker: Vec2 | null;
   onClearError: () => void;
   onAstroClick: (astro: Astro) => void;
+  errorCircle: React.FC<any> | null;
+
 
   // header left
   titleZoomText: string; // ex: `VERSÃO 0.1b • Zoom ${Math.round(zoom*100)}%`
@@ -71,14 +74,17 @@ type Props = {
 
   // preview modal
   isPreviewOpen: boolean;
-  setIsPreviewOpen: (v: boolean) => void;
+  onPreviewOpen: () => void;
+  closePreviewModal: () => void;
   previewAstro: Astro | null;
 
   // astro details modal
+  isAstroModalOpen: boolean;
   selectedAstro: Astro | null;
   onCloseAstroDetails: () => void;
   onPulse: () => void;
   onShare: () => void;
+  onPoster: () => void;
   isPulsing: boolean;
 
   // sobre/termos
@@ -88,6 +94,34 @@ type Props = {
   isModalTermosOpen: boolean;
   closeModalTermos: () => void;
   isMapBlocked: boolean;
+
+  // STARMAP
+  // Quadro estelar
+  starmapEnabled: boolean;
+  setStarmapEnabled: (v: boolean) => void;
+
+  starmapTitle: string;
+  setStarmapTitle: (v: string) => void;
+
+  locationQuery: string;
+  setLocationQuery: (v: string) => void;
+
+  locationResults: Array<{ id: number; label: string; lat: number; lng: number }>;
+  locationLoading: boolean;
+
+  selectedLocation: { id: number; label: string; lat: number; lng: number } | null;
+  setSelectedLocation: (v: { id: number; label: string; lat: number; lng: number } | null) => void;
+
+  eventDate: string;
+  setEventDate: (v: string) => void;
+
+  eventTime: string;
+  setEventTime: (v: string) => void;
+
+  hideTime: boolean;
+  setHideTime: (v: boolean) => void;
+
+  defaultUserName: string;
 };
 
 const SkyViewport: React.FC<Props> = ({
@@ -107,7 +141,9 @@ const SkyViewport: React.FC<Props> = ({
   pulseFx,
   clickMarker,
   errorMarker,
+  loginMarker,
   onClearError,
+  errorCircle,
   onAstroClick,
 
   titleZoomText,
@@ -136,13 +172,16 @@ const SkyViewport: React.FC<Props> = ({
   onConfirmPurchase,
 
   isPreviewOpen,
-  setIsPreviewOpen,
+  onPreviewOpen,
+  closePreviewModal,
   previewAstro,
 
+  isAstroModalOpen,
   selectedAstro,
   onCloseAstroDetails,
   onPulse,
   onShare,
+  onPoster,
   isPulsing,
 
   modalAberto,
@@ -157,6 +196,25 @@ const SkyViewport: React.FC<Props> = ({
 
   targetOff,
   currentZoom,
+
+  // STARMAP
+  starmapEnabled,
+  setStarmapEnabled,
+  starmapTitle,
+  setStarmapTitle,
+  locationQuery,
+  setLocationQuery,
+  locationResults,
+  locationLoading,
+  selectedLocation,
+  setSelectedLocation,
+  eventDate,
+  setEventDate,
+  eventTime,
+  setEventTime,
+  hideTime,
+  setHideTime,
+  defaultUserName,
 }) => {
     const isMinimapDraggingRef = React.useRef(false);
 
@@ -229,8 +287,10 @@ const SkyViewport: React.FC<Props> = ({
           pulseFx={pulseFx}
           clickMarker={clickMarker}
           errorMarker={errorMarker}
+          loginMarker={loginMarker}
           onClearError={onClearError}
           onAstroClick={onAstroClick}
+          errorCircle={errorCircle}
         />
 
         {/* Interface Overlay */}
@@ -259,7 +319,7 @@ const SkyViewport: React.FC<Props> = ({
             {/* SALDO DE CRÉDITOS */}
             <div className="bg-slate-900/60 border border-white/10 px-3 py-2 rounded-xl">
               <span className="text-yellow-400 font-black text-xs">
-                ★ {userBalance}
+                <i className="fa-solid fa-bolt"></i> {userBalance}
               </span>
             </div>
 
@@ -269,6 +329,10 @@ const SkyViewport: React.FC<Props> = ({
               <img
                 src={session.user.user_metadata.avatar_url}
                 alt="Perfil"
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  if (img.src !== "./unknown.png") img.src = "./unknown.png";
+                }}
                 className="w-10 h-10 rounded-xl border-2 border-indigo-500 shadow-lg group-hover:scale-105 transition-transform"
               />
               <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-slate-900 rounded-full"></div>
@@ -298,7 +362,6 @@ const SkyViewport: React.FC<Props> = ({
           }}
           onTouchStart={(e) => {
             e.stopPropagation();
-            e.preventDefault();
             isMinimapDraggingRef.current = true;
             const t = e.touches[0];
             moveToMinimapPoint(t.clientX, t.clientY, e.currentTarget);
@@ -363,14 +426,33 @@ const SkyViewport: React.FC<Props> = ({
           removeImage={removeImage}
           userBalance={userBalance}
           onConfirmPurchase={onConfirmPurchase}
-          onOpenPreview={() => setIsPreviewOpen(true)}
+          onPreviewOpen={onPreviewOpen}
+          isPreviewOpen={isPreviewOpen}
           SKY_W={SKY_W}
           SKY_H={SKY_H}
+
+          // STARMAP
+          starmapEnabled={starmapEnabled}
+          setStarmapEnabled={setStarmapEnabled}
+          starmapTitle={starmapTitle}
+          setStarmapTitle={setStarmapTitle}
+          locationQuery={locationQuery}
+          setLocationQuery={setLocationQuery}
+          locationResults={locationResults}
+          locationLoading={locationLoading}
+          selectedLocation={selectedLocation}
+          setSelectedLocation={setSelectedLocation}
+          eventDate={eventDate}
+          setEventDate={setEventDate}
+          eventTime={eventTime}
+          setEventTime={setEventTime}
+          hideTime={hideTime}
+          setHideTime={setHideTime}
         />
 
         <PreviewModal
           isOpen={isPreviewOpen}
-          onClose={() => setIsPreviewOpen(false)}
+          onClose={closePreviewModal}
           previewAstro={previewAstro}
           imagePreviewUrl={imagePreviewUrl}
           msg={msg}
@@ -378,29 +460,17 @@ const SkyViewport: React.FC<Props> = ({
         />
 
         <AstroDetailsModal
+          isAstroModalOpen={isAstroModalOpen}
           selectedAstro={selectedAstro}
           onClose={onCloseAstroDetails}
           onPulse={onPulse}
           onShare={onShare}
+          onPoster={onPoster}
           isPulsing={isPulsing}
           isLogged={!!session?.user}
         />
 
-        {/* O MODAL SOBRE */}
-        <ModalSobre isOpen={modalAberto} onClose={closeModalSobre} />
-
-        {/* O MODAL TERMOS */}
-        <ModalTermos isOpen={isModalTermosOpen} onClose={closeModalTermos} />
-
-        {/* modal fora do overlay pra não fechar ao clicar */}
-        <RechargeModal
-          isOpen={isRechargeOpen}
-          onClose={closeRecharge}
-          onPaid={() => {
-            closeRecharge();
-            // seu saldo atualiza via realtime do profiles automaticamente [file:1]
-          }}
-        />
+        
       </div>
     </>
   );

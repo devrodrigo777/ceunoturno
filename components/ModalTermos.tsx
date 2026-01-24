@@ -9,13 +9,9 @@ interface ModalProps {
 const ModalTermos: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
     
   if (!isOpen) return null;
-
-  // useEffect(() => {
-      
-  //   }, []);
-
+  
   return (
-      <div className="fixed inset-0 z-[100] flex items-center overflow-y-scroll justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="fixed inset-0 z-[102] flex items-center overflow-y-scroll justify-center p-4 bg-black/70 backdrop-blur-sm">
         {/* Container do Modal */}
         <div data-modal="true" className="relative max-w-2xl w-full max-h-[85vh] bg-slate-900/80 border border-blue-500/30 rounded-2xl shadow-2xl backdrop-blur-md modal-content">
           

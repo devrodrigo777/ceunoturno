@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import Modal from "./Modal";
 import { Astro } from "../types";
+import { formatAstroDate } from "@/utils/formatDate";
 
 type Props = {
   selectedAstro: Astro | null;
@@ -8,9 +9,11 @@ type Props = {
 
   onPulse: () => void;
   onShare: () => void;
+  onPoster: () => void;
 
   isPulsing: boolean;
   isLogged: boolean;
+  isAstroModalOpen: boolean;
 };
 
 const AstroDetailsModal: React.FC<Props> = ({
@@ -18,14 +21,14 @@ const AstroDetailsModal: React.FC<Props> = ({
   onClose,
   onPulse,
   onShare,
+  onPoster,
   isPulsing,
   isLogged,
+  isAstroModalOpen,
 }) => {
-  // useEffect(() => {
-  //   history.pushState({ ui: "astro" }, "");
-  // });
   return (
-    <Modal isOpen={!!selectedAstro} onClose={onClose} title="Explorando">
+
+    <Modal isOpen={isAstroModalOpen} onClose={onClose} title="Explorando">
       {!!selectedAstro && (
         <div className="animate-entrance backdrop-blur-sm text-center py-6">
           <div className="w-24 h-24 mx-auto mb-8 flex items-center justify-center relative">
@@ -44,9 +47,9 @@ const AstroDetailsModal: React.FC<Props> = ({
             </div>
           </div>
 
-          {selectedAstro.image_url && (
+          {selectedAstro.image_path && (
             <img
-              src={selectedAstro.image_url}
+              src={selectedAstro.image_path}
               alt="Imagem do astro"
               className="w-full max-h-80 object-cover rounded-2xl border border-white/10 mt-6"
             />
@@ -60,8 +63,11 @@ const AstroDetailsModal: React.FC<Props> = ({
             <p className="text-[10px] text-indigo-400 font-mono uppercase tracking-[0.2em]">
               {selectedAstro.coordinate}
             </p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+              Por {selectedAstro.user_name}
+            </p>
             <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">
-              Explorado por {selectedAstro.user_name}
+              {formatAstroDate(selectedAstro.created_at)}
             </p>
           </div>
 
@@ -80,6 +86,17 @@ const AstroDetailsModal: React.FC<Props> = ({
             >
               <i className="fa-solid fa-share-nodes"></i> Compartilhar
             </button>
+
+            {/* LINHA HORIZONTAL */}
+            <div className="col-span-10 h-px bg-white/10"></div>
+
+            <button
+              onClick={onPoster}
+              className="col-span-10 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 rounded-xl uppercase tracking-widest text-sm flex items-center justify-center gap-2"
+            >
+              <i className="fa-solid fa-share-nodes"></i> Gerar Mapa Estelar <span className="text-yellow-400">200 <i className="fa-solid fa-bolt"></i></span>
+            </button>
+
           </div>
 
           {isLogged && (

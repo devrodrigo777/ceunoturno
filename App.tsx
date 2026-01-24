@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Astro, AstroPosition, User, AstroType } from "./types";
 import { SKY_W, SKY_H, MIN_ASTRO_DISTANCE, FRICTION, LERP, MIN_Z, MAX_Z, DRAG_SENSITIVITY, INITIAL_ASTROS } from "./constants";
 import FullscreenPrompt from "./components/FullScreenPrompt";
@@ -16,8 +16,14 @@ import { usePurchaseFlow } from "./hooks/usePurchaseFlow";
 import SkyViewport from "./components/SkyViewport";
 import { useBackHandler } from "./hooks/useBackHandler";
 import { useShareOrCopy } from "./hooks/useShareOrCopy";
+import ModalSobre from "./components/ModalSobre";
+import ModalTermos from "./components/ModalTermos";
+import RechargeModal from "./components/RechargeModal";
+import { enforceVersionReset } from "./utils/versionGuard";
+import PosterModal from "./components/PosterModal";
 
 const App: React.FC = () => {
+  enforceVersionReset();
   const [astros, setAstros] = useState<Astro[]>(INITIAL_ASTROS);
   const [user, setUser] = useState<User>({
     id: "0",
@@ -30,13 +36,9 @@ const App: React.FC = () => {
 
   const [showIntro, setShowIntro] = useState(false);
 
-  // Modal Sobre State
-  const [isModalSobreOpen, setIsModalSobreOpen] = useState(false);
-  // Modal Termos State
-  const [isModalTermosOpen, setIsModalTermosOpen] = useState(false);
+
   // Modal Sobre State
   const [modalAberto, setModalAberto] = useState(false);
-  const [isRechargeOpen, setIsRechargeOpen] = useState(false);
 
   // Click position marker
   const [clickMarker, setClickMarker] = useState<{
@@ -48,6 +50,14 @@ const App: React.FC = () => {
     x: number;
     y: number;
   } | null>(null);
+
+  const [loginMarker, setLoginMarker] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+
+  type ErrorCircle = { x: number; y: number; r: number } | null;
+  const [errorCircle, setErrorCircle] = useState<ErrorCircle>(null);
 
   // Form State
   const { width, height } = useWindowSize();
@@ -78,14 +88,27 @@ const App: React.FC = () => {
     ? (astros.find((a) => a.id === selectedAstroId) ?? null)
     : null;
 
-  const isMapBlocked =
-  isPurchaseModalOpen ||
-  isPreviewOpen ||
-  !!selectedAstro ||
-  isModalSobreOpen ||
-  modalAberto ||
-  isModalTermosOpen ||
-  isDashboardOpen;
+  type OverlayKey = 'dashboard' | 'sobre' | 'termos' | 'purchase' | 'preview' | 'astro' | 'recharge' | 'poster';
+
+  const [overlayStack, setOverlayStack] = useState<OverlayKey[]>([]);
+  const isMapBlocked = overlayStack.length > 0;
+  const isOpen = (k:OverlayKey) => overlayStack.includes(k);
+
+
+
+  const openOverlay = useCallback((k: OverlayKey, state: any = { ui: k }, url?: string) => {
+    setOverlayStack(s => (s[s.length - 1] === k ? s : [...s, k]));
+    history.pushState(state, '', url ?? window.location.pathname);
+  }, []);
+
+  const closeTopOverlay = () => {
+    history.back();
+  };
+
+  const closeAllOverlays = () => {
+    setOverlayStack([]);
+  }
+
 
 
   const {
@@ -101,11 +124,10 @@ const App: React.FC = () => {
 
   const openAstroDetails = (astroId: string) => {
     setSelectedAstroId(astroId);
-
+    
     const url = new URL(window.location.href);
     url.searchParams.set("astro", astroId);
-
-    history.pushState({ ui: "astro", astroId }, "", url.toString());
+    openOverlay('astro', { ui:'astro', astroId }, url.toString());
   };
 
 
@@ -115,6 +137,8 @@ const App: React.FC = () => {
   const sessionUserIdRef = useRef<string | null>(null);
   const { session } = useSession({ setIsLoading, setShowIntro });
   sessionUserIdRef.current = session?.user?.id ?? null;
+
+  
 
   
   /**
@@ -129,10 +153,6 @@ const App: React.FC = () => {
     targetOff,
     currentZoom,
   });
-
-  
-
-  
 
   useEffect(() => {
     if (isMapBlocked) stopDragging();
@@ -168,6 +188,11 @@ const App: React.FC = () => {
     }
   };
 
+  const handlePoster = () => {
+    console.log("handle poster");
+    openOverlay("poster");
+  }
+
   const handleShare = async () => {
     if (!selectedAstro) return;
 
@@ -197,7 +222,7 @@ const App: React.FC = () => {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    setIsDashboardOpen(false);
+    closeTopOverlay();
   };
   //#endregion
 
@@ -211,14 +236,8 @@ const App: React.FC = () => {
 
     pendingAstroIdRef.current = astroId;
 
-    // opcional: fecha UIs já na chegada via link
-    setIsDashboardOpen(false);
-    setModalAberto(false);
-    setIsModalSobreOpen(false);
-    setIsModalTermosOpen(false);
-
-    // transforma esse link em "root" da sessão (não empilha)
-    history.replaceState({ ui: "astro-root", astroId }, "", window.location.href);
+    closeAllOverlays();
+    openOverlay("astro", { ui: "astro", astroId }, "?astro=" + astroId);
   }, []);
 
   // Identificar, localiar e abrir o modal
@@ -277,6 +296,12 @@ const App: React.FC = () => {
 
   //#endregion
 
+  const myAstros = useMemo(() => {
+    const uid = session?.user?.id;
+    if (!uid) return [];
+    return astros.filter(a => a.user_id === uid);
+  }, [astros, session?.user?.id]);
+
   const getStarRegion = (x: number, y: number): AstroPosition => {
     if (y < 700) {
       return AstroPosition.ZENITH;
@@ -312,6 +337,15 @@ const App: React.FC = () => {
     onPickImage,
     removeImage,
     minimapDotStyle,
+    starmapEnabled, setStarmapEnabled,
+    starmapTitle, setStarmapTitle,
+    locationQuery, setLocationQuery,
+    locationResults,
+    locationLoading,
+    selectedLocation, setSelectedLocation,
+    eventDate, setEventDate,
+    eventTime, setEventTime,
+    hideTime, setHideTime,
   } = usePurchaseFlow({
     astros,
     offset,
@@ -330,7 +364,10 @@ const App: React.FC = () => {
     MIN_ASTRO_DISTANCE,
     getStarRegion,
     getVelocity,
-    setIsDashboardOpen
+    setIsDashboardOpen,
+    setErrorCircle,
+    openOverlay,
+    setLoginMarker,
   });
 
   const handleEnd = (clientX: number, clientY: number) => {
@@ -347,39 +384,21 @@ const App: React.FC = () => {
     }
   };
 
-  const openDashboard = () => setIsDashboardOpen(true);
-  const closeDashboard = () => setIsDashboardOpen(false);
-
   const openSobre = () => {
-    setIsDashboardOpen(false);
-    setModalAberto(true); // ou setIsModalSobreOpen(true)
-    history.pushState({ ui: "sobre" }, "");
+    openOverlay("sobre");
   };
   const closeSobre = () => {
-    setModalAberto(false);
-    setIsModalSobreOpen(false); // se existir
+    closeTopOverlay();
   };
 
   const openTermos = () => {
-    setIsDashboardOpen(false);
-    setIsModalTermosOpen(true);
-    history.pushState({ ui: "termos" }, "");
+    openOverlay("termos");
   };
-  const closeTermos = () => setIsModalTermosOpen(false);
+  // const closeTermos = () => closeTopOverlay();
 
-  const { pushDashboard, pushSobre, pushTermos } = useBackHandler({
-    isDashboardOpen,
-    isModalSobreOpen,
-    modalAberto,
-    isModalTermosOpen,
-    openDashboard,
-    closeDashboard,
-    openSobre,
-    closeSobre,
-    openTermos,
-    closeTermos,
-    closeAstroDetails: () => setSelectedAstroId(null),
-    selectedAstroId
+  const { closeOverlay, pushDashboard, pushSobre, pushTermos } = useBackHandler({
+    setOverlayStack,
+    openOverlay,
   });
 
   // Progresso inicial de carregamento
@@ -441,6 +460,13 @@ const App: React.FC = () => {
     }
   };
 
+  const closeAstroModal = () => {
+    setSelectedAstroId(null);
+    closeAllOverlays();
+    const url = new URL(window.location.href);
+    url.searchParams.delete("astro");
+    window.history.replaceState(null, "", url.href);
+  };
   const openAstroModal = async (astro: Astro) => {
     
     openAstroDetails(astro.id);
@@ -506,38 +532,7 @@ const App: React.FC = () => {
 
       {/* {!isLoading && !showIntro && <FullscreenMonitor />} */}
 
-      {isDashboardOpen && (
-        <UserDashboard
-          user={session?.user}
-          credits={user.balance}
-          myAstros={astros}
-          isOpen={isDashboardOpen}
-          onClose={() => setIsDashboardOpen(false)}
-          onAbout={() => {
-            setIsDashboardOpen(false);
-            setIsModalSobreOpen(true);
-            setModalAberto(true);
-          }}
-          onTerms={() => {
-            setIsDashboardOpen(false);
-            setIsModalTermosOpen(true);
-            setModalAberto(false);
-          }}
-          onFocusAstro={(astro_x, astro_y) => {
-            targetOff.current = {
-              x: -(astro_x * currentZoom.current) + width / 2,
-              y: -(astro_y * currentZoom.current) + height / 2,
-            };
-            currentZoom.current = 0.7;
-            setIsDashboardOpen(false);
-          }}
-          onRecharge={() => {
-            setIsDashboardOpen(false);
-            setIsRechargeOpen(true);
-          }}
-          onLogout={handleLogout}
-        />
-      )}
+      
 
       {!showIntro && !isLoading && (
         <>
@@ -570,20 +565,23 @@ const App: React.FC = () => {
             pulseFx={pulseFx}
             clickMarker={clickMarker}
             errorMarker={errorMarker}
+            loginMarker={loginMarker}
+
+            
+            errorCircle={errorCircle}
             onClearError={() => setErrorMarker(null)}
-            onAstroClick={(astro) => {
-              openAstroModal(astro);
-              openAstroDetails(astro.id);
-            }}
-            titleZoomText={`VERSÃO 0.1b • Zoom ${Math.round(zoom * 100)}%`}
+            // onAstroClick={(astro) => {
+            //   openAstroModal(astro);
+            // }}
+            
+            titleZoomText={`V 1.0.1a • Zoom ${Math.round(zoom * 100)}%`}
             session={session ?? null}
             userBalance={user.balance}
             onLogin={handleLogin}
-            onOpenDashboard={() => pushDashboard()}
+            onOpenDashboard={() => openOverlay("dashboard")}
             width={width}
             height={height}
-            isPurchaseModalOpen={isPurchaseModalOpen}
-            closePurchaseModal={closePurchaseModal}
+            
             quote={quote}
             type={type}
             setType={setType}
@@ -596,30 +594,105 @@ const App: React.FC = () => {
             onPickImage={onPickImage}
             removeImage={removeImage}
             onConfirmPurchase={handlePurchase}
-            isPreviewOpen={isPreviewOpen}
-            setIsPreviewOpen={setIsPreviewOpen}
+            
             previewAstro={previewAstro}
-            selectedAstro={selectedAstro}
-            onCloseAstroDetails={() => {setSelectedAstroId(null); history.pushState({ ui: "root" }, "", window.location.pathname); }}
             onPulse={handlePulse}
             onShare={handleShare}
+            onPoster={handlePoster}
             isPulsing={isPulsing}
-            modalAberto={modalAberto}
-            closeModalSobre={() => {setModalAberto(false); pushDashboard(); }}
-            isModalTermosOpen={isModalTermosOpen}
-            closeModalTermos={() => {setIsModalTermosOpen(false); pushDashboard(); }}
-            isMapBlocked={isMapBlocked}
-            isRechargeOpen={isRechargeOpen}
-              closeRecharge={() => setIsRechargeOpen(false)}
-              onOpenRecharge={() => {
-                setIsDashboardOpen(false); // opcional: fecha dashboard antes
-                setIsRechargeOpen(true);
-              }}
+
+            // Sobre / Termos
+            modalAberto={isOpen("sobre")}
+            // closeModalSobre={() => closeTopOverlay() }
+            isModalTermosOpen={isOpen("termos")}
+            // closeModalTermos={ closeTopOverlay() }
+
+            // Purchase / Preview
+            isPurchaseModalOpen={isOpen("purchase")}
+            closePurchaseModal={() => closeTopOverlay()}
+            isPreviewOpen={isOpen("preview")}
+            onPreviewOpen={() => openOverlay("preview")}
+            closePreviewModal={() => closeTopOverlay()}
+            // setIsPreviewOpensetIsPreviewOpen}
+
+            // Astro Details
+            onAstroClick={openAstroModal}
+            selectedAstro={selectedAstro}
+            isAstroModalOpen={isOpen("astro")}
+            onCloseAstroDetails={closeAstroModal}
+
+            isMapBlocked={overlayStack.length > 0}
+            isRechargeOpen={isOpen("recharge")}
+              closeRecharge={() => closeTopOverlay()}
+              onOpenRecharge={() => openOverlay}
               targetOff={targetOff}
               currentZoom={currentZoom}
+
+              // Starmap
+              // >>> NOVAS PROPS (quadro estelar)
+              starmapEnabled={starmapEnabled}
+              setStarmapEnabled={setStarmapEnabled}
+              starmapTitle={starmapTitle}
+              setStarmapTitle={setStarmapTitle}
+              locationQuery={locationQuery}
+              setLocationQuery={setLocationQuery}
+              locationResults={locationResults}
+              locationLoading={locationLoading}
+              selectedLocation={selectedLocation}
+              setSelectedLocation={setSelectedLocation}
+              eventDate={eventDate}
+              setEventDate={setEventDate}
+              eventTime={eventTime}
+              setEventTime={setEventTime}
+              hideTime={hideTime}
+              setHideTime={setHideTime}
           />
         </>
       )}
+
+      <PosterModal
+          isOpen={isOpen("poster")}
+          onClose={() => closeTopOverlay()}
+          astro={selectedAstro}
+        />
+
+      {isOpen("dashboard") && (
+        <UserDashboard
+          user={session?.user}
+          credits={user.balance}
+          myAstros={myAstros}
+          isOpen={isOpen("dashboard")}
+          onClose={() => closeTopOverlay()}
+          onAbout={() => openOverlay("sobre")}
+          onTerms={() => openOverlay("termos")}
+          onFocusAstro={(astro_x, astro_y) => {
+            targetOff.current = {
+              x: -(astro_x * currentZoom.current) + width / 2,
+              y: -(astro_y * currentZoom.current) + height / 2,
+            };
+            currentZoom.current = 1.5;
+            closeTopOverlay();
+          }}
+          onRecharge={() => {
+            openOverlay("recharge");
+          }}
+          onLogout={handleLogout}
+        />
+      )}
+
+      {/* O MODAL SOBRE */}
+      <ModalSobre isOpen={isOpen("sobre")} onClose={() => closeTopOverlay()} />
+
+      {/* O MODAL TERMOS */}
+      <ModalTermos isOpen={isOpen("termos")} onClose={() => closeTopOverlay()} />
+
+      {/* modal fora do overlay pra não fechar ao clicar */}
+      <RechargeModal
+        isOpen={isOpen("recharge")}
+        onClose={() => closeTopOverlay()}
+        onPaid={() => closeTopOverlay()}
+        closeAllOverlays={closeAllOverlays}
+      />
     </>
   );
 };

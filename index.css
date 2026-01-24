@@ -179,3 +179,11 @@ body {
         .sky-gradient-v2 {
             background: radial-gradient(circle at 50% 50%, #0c0c24 0%, #020617 100%);
         }
+
+        /* Remove o container do Sonner quando o toast é unstyled (custom) */
+li[data-sonner-toast][data-styled="false"] {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}

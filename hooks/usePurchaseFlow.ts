@@ -1,7 +1,8 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState, useEffect } from "react";
 import { toast } from "sonner";
 import { supabase } from "../services/supabaseClient";
 import { Astro, AstroPosition, AstroType } from "../types";
+import { buildEventISO } from "../utils/formatDate";
 
 type Vec2 = { x: number; y: number };
 
@@ -20,6 +21,7 @@ type Params = {
 
     setClickMarker: React.Dispatch<React.SetStateAction<Vec2 | null>>;
     setErrorMarker: React.Dispatch<React.SetStateAction<Vec2 | null>>;
+    setLoginMarker: React.Dispatch<React.SetStateAction<Vec2 | null>>;
     setIsPurchaseModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
 
     SKY_W: number;
@@ -30,6 +32,8 @@ type Params = {
     getVelocity: () => Vec2;
 
     setIsDashboardOpen:  React.Dispatch<React.SetStateAction<boolean>>;
+    setErrorCircle: React.Dispatch<React.SetStateAction<{ x:number; y:number; r:number } | null>>;
+    openOverlay: (k: any, state?: any, url?: string) => void;
 };
 
 export function usePurchaseFlow({
@@ -44,13 +48,16 @@ export function usePurchaseFlow({
     setPos,
     setClickMarker,
     setErrorMarker,
+    setLoginMarker,
     setIsPurchaseModalOpen,
     SKY_W,
     SKY_H,
     MIN_ASTRO_DISTANCE,
     getStarRegion,
     getVelocity,
-    setIsDashboardOpen
+    setIsDashboardOpen,
+    setErrorCircle,
+    openOverlay
 }: Params) {
     const [quote, setQuote] = useState<any>(null);
 
@@ -65,6 +72,76 @@ export function usePurchaseFlow({
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
     const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
+
+    // MAPA ESTELAR
+    // hooks/usePurchaseFlow.ts
+    const [starmapEnabled, setStarmapEnabled] = useState(false);
+    const [starmapTitle, setStarmapTitle] = useState("");
+
+    const [locationQuery, setLocationQuery] = useState("");
+    const [locationResults, setLocationResults] = useState<
+    Array<{ id: number; label: string; lat: number; lng: number }>
+    >([]);
+    const [locationLoading, setLocationLoading] = useState(false);
+
+    const [selectedLocation, setSelectedLocation] = useState<{
+    id: number;
+    label: string;
+    lat: number;
+    lng: number;
+    } | null>(null);
+
+    const [eventDate, setEventDate] = useState(""); // "YYYY-MM-DD"
+    const [eventTime, setEventTime] = useState(""); // "HH:mm"
+    const [hideTime, setHideTime] = useState(false);
+    const defaultUserName =
+            session?.user?.user_metadata?.full_name ??
+            session?.user?.user_metadata?.fullname ??
+            session?.user?.user_metadata?.name ??
+            "Viajante";
+    
+
+        useEffect(() => {
+            if (!starmapEnabled) return;
+
+            const q = locationQuery.trim();
+            if (q.length < 3) {
+                setLocationResults([]);
+                setLocationLoading(false);
+                return;
+            }
+
+            // Se o usuário editou depois de selecionar, invalida seleção
+            if (selectedLocation && q !== selectedLocation.label) {
+                setSelectedLocation(null);
+            }
+
+            let cancelled = false;
+            setLocationLoading(true);
+
+            const t = window.setTimeout(async () => {
+                try {
+                const { data, error } = await supabase.rpc("search_locations", { q });
+                if (cancelled) return;
+
+                if (error) throw new Error(error.message);
+                setLocationResults((data ?? []) as any);
+                } catch (e: any) {
+                if (!cancelled) setLocationResults([]);
+                } finally {
+                if (!cancelled) setLocationLoading(false);
+                }
+            }, 350);
+
+            return () => {
+                cancelled = true;
+                window.clearTimeout(t);
+            };
+            }, [starmapEnabled, locationQuery, selectedLocation]);
+
+
+
+
 
     const previewAstro: Astro | null = useMemo(() => {
         if (!pendingCoords) return null;
@@ -97,7 +174,7 @@ export function usePurchaseFlow({
     }, [imagePreviewUrl]);
 
     const closePurchaseModal = useCallback(() => {
-        alert("fechou!");
+        // alert("fechou!");
         setQuote(null);
         setMsg("");
         setTitulo("");
@@ -129,8 +206,7 @@ export function usePurchaseFlow({
 
     const handleMapClick = useCallback(
         async (clientX: number, clientY: number) => {
-            if (isPurchaseModalOpen || selectedAstro || modalAberto) return;
-
+            // if (!isPurchaseModalOpen) return;
             const v = getVelocity();
             if (!(Math.abs(v.x) < 0.5 && Math.abs(v.y) < 0.5)) return;
 
@@ -140,15 +216,41 @@ export function usePurchaseFlow({
             // Remove o brilho após 2 segundos para não poluir a tela
             setTimeout(() => setClickMarker(null), 2000);
 
-            const isTooClose = astros.some(
-                (a) => Math.hypot(a.x - canvasX, a.y - canvasY) < MIN_ASTRO_DISTANCE
-            );
+            const tooCloseAstro = astros
+            .map(a => ({ a, d: Math.hypot(a.x - canvasX, a.y - canvasY) }))
+            .filter(x => (x.d < MIN_ASTRO_DISTANCE))
+            .sort((p, q) => p.d - q.d);//[0]?.a;
 
-            if (isTooClose) {
-                setErrorMarker({ x: canvasX, y: canvasY });
-                setTimeout(() => setErrorMarker(null), 1500);
+            if (tooCloseAstro.length > 0) {
+                var filter_outside_size = tooCloseAstro.filter(x => (x.d > x.a.size));
+
+                if(filter_outside_size.length > 0) {
+                    setErrorMarker({ x: canvasX, y: canvasY });
+
+                    setErrorCircle({
+                        x: tooCloseAstro[0].a.x,
+                        y: tooCloseAstro[0].a.y,
+                        r: MIN_ASTRO_DISTANCE,
+                    });
+
+                    setTimeout(() => {
+                        setErrorMarker(null);
+                        setErrorCircle(null);
+                    }, 1500);
+                }
+                
                 return;
             }
+
+            // const isTooClose = astros.some(
+            //     (a) => Math.hypot(a.x - canvasX, a.y - canvasY) < MIN_ASTRO_DISTANCE
+            // );
+
+            // if (isTooClose) {
+            //     setErrorMarker({ x: canvasX, y: canvasY });
+            //     setTimeout(() => setErrorMarker(null), 1500);
+            //     return;
+            // }
 
             setClickMarker({ x: canvasX, y: canvasY });
             setPendingCoords({ x: canvasX, y: canvasY });
@@ -156,7 +258,11 @@ export function usePurchaseFlow({
             const zonaCalculada = getStarRegion(canvasX, canvasY);
             setPos(zonaCalculada);
 
-            if (!session?.user) return;
+            if (!session?.user){
+                setLoginMarker({ x: canvasX, y: canvasY-25 });
+                setTimeout(() => setLoginMarker(null), 1500);
+                return;
+            }
 
             const { data, error } = await supabase.rpc("quote_astro", {
                 p_x: Math.round(canvasX),
@@ -165,7 +271,9 @@ export function usePurchaseFlow({
 
             if (error) return;
             setQuote(data);
-            setIsPurchaseModalOpen(true);
+
+            openOverlay("purchase", { ui: "purchase" });
+            // setIsPurchaseModalOpen(true);
         },
         [
             isPurchaseModalOpen,
@@ -182,14 +290,26 @@ export function usePurchaseFlow({
             setPos,
             setClickMarker,
             setErrorMarker,
+            setLoginMarker,
             setIsPurchaseModalOpen,
+            openOverlay,
         ]
     );
 
     const uploadAstroImageIfNeeded = useCallback(async (): Promise<string | null> => {
         if (!imageFile || !session?.user) return null;
 
-        const ext = imageFile.name.split(".").pop() || "jpg";
+        const mime = imageFile.type; // ex: "image/jpeg"
+        const ext = mime === "image/jpeg" ? "jpg"
+        : mime === "image/png" ? "png"
+        : mime === "image/webp" ? "webp"
+        : null;
+
+        if (!ext) {
+            toast.error("Formato de imagem não permitido.");
+            return;
+        }
+
         const fileName = `${session.user.id}/${crypto.randomUUID()}.${ext}`;
 
         const { error: uploadError } = await supabase.storage
@@ -211,8 +331,21 @@ export function usePurchaseFlow({
         if (!pendingCoords) return;
 
         try {
+
+            if (starmapEnabled) {
+                if (!starmapTitle && !starmapTitle?.trim()) return toast.error("Defina um título válido para o quadro.");
+                if (!selectedLocation) return toast.error("Selecione uma cidade da lista.");
+                if (!eventDate) return toast.error("Selecione a data do evento.");
+                if(!eventTime && !hideTime) return toast.error("Selecione a hora do evento.");
+            }
+
+            const starmapDatetime = starmapEnabled
+                ? buildEventISO(eventDate, eventTime, hideTime)
+                : null;
             const imageUrl = uploadedImageUrl ?? (await uploadAstroImageIfNeeded());
             setUploadedImageUrl(imageUrl);
+
+            
 
             const { data, error } = await supabase.rpc("purchase_astro", {
                 p_message: msg,
@@ -221,6 +354,15 @@ export function usePurchaseFlow({
                 p_type: type,
                 p_color: color,
                 p_image_path: imageUrl,
+
+                // >>> QUADRO ESTELAR
+                p_starmap_enabled: starmapEnabled,
+                p_starmap_title: starmapEnabled ? (starmapTitle.trim() || null) : null,
+                p_starmap_location_label: starmapEnabled ? selectedLocation?.label ?? null : null,
+                p_starmap_lat: starmapEnabled ? selectedLocation?.lat ?? null : null,
+                p_starmap_lng: starmapEnabled ? selectedLocation?.lng ?? null : null,
+                p_starmap_datetime: starmapEnabled ? starmapDatetime : null,
+                p_starmap_hide_time: starmapEnabled ? hideTime : false,
             });
 
             if (error) throw new Error(error.message);
@@ -248,6 +390,11 @@ export function usePurchaseFlow({
         color,
         setAstros,
         closePurchaseModal,
+        starmapEnabled,
+        starmapTitle,
+        selectedLocation,
+        eventDate,
+        hideTime
     ]);
 
     // Útil pro minimapa do modal (sem mudar termos)
@@ -295,5 +442,17 @@ export function usePurchaseFlow({
 
         // helpers
         minimapDotStyle,
+
+        // starmap locations
+        starmapEnabled, setStarmapEnabled,
+        starmapTitle, setStarmapTitle,
+        locationQuery, setLocationQuery,
+        locationResults, setLocationResults,
+        locationLoading,
+        selectedLocation, setSelectedLocation,
+        eventDate, setEventDate,
+        eventTime, setEventTime,
+        hideTime, setHideTime,
+        defaultUserName
     };
 }

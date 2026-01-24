@@ -9,8 +9,8 @@ const FullscreenPrompt: React.FC<{ onEnter: () => void }> = ({ onEnter }) => {
   };
 
   return (
-    <div className="animate-entrance fixed inset-0 z-[100] bg-[#020617] flex items-center justify-center p-6 text-center overflow-y-auto">
-      <div className="max-w-sm w-full space-y-8 py-8">
+    <div className="animate-entrance fixed inset-0 z-[102] bg-[#020617] flex items-center justify-center p-6 text-center overflow-y-hidden">
+      <div className="max-w-sm w-full scale-[0.85] space-y-8 py-8">
         
         {/* Ícone e Título Principal */}
         <div className="relative">

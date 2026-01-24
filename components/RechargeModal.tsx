@@ -2,11 +2,13 @@ import React, { useMemo, useEffect, useState } from "react";
 import Modal from "./Modal";
 import { supabase } from "@/services/supabaseClient";
 import { toast } from "sonner";
+import { showPixLoadingToast } from "@/utils/toasts";
 
 type Props = {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void; // opcional: fechar modal, toast etc.
+  closeAllOverlays: () => void;
 };
 
 type ApiResp = {
@@ -21,16 +23,38 @@ type ApiResp = {
   };
 };
 
-const RechargeModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
+const RechargeModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, closeAllOverlays }) => {
   const [amountCents, setAmountCents] = useState<number>(1000);
   const [loading, setLoading] = useState(false);
   const [resp, setResp] = useState<ApiResp | null>(null);
   const [error, setError] = useState<string>("");
 
+  const PIX_TTL_MS = 4 * 60 * 1000;
+  const [pixExpiresAt, setPixExpiresAt] = useState<number | null>(null);
+  const [remainingSec, setRemainingSec] = useState(0);
+
   const amountBRL = useMemo(
     () => (amountCents / 100).toFixed(2),
     [amountCents],
   );
+
+  useEffect(() => {
+      if (!pixExpiresAt) return;
+
+      const tick = () => {
+        const sec = Math.max(0, Math.ceil((pixExpiresAt - Date.now()) / 1000));
+        setRemainingSec(sec);
+      };
+
+      tick();
+      const id = window.setInterval(tick, 1000);
+      return () => window.clearInterval(id);
+    }, [pixExpiresAt]);
+
+    const isExpired = pixExpiresAt ? Date.now() >= pixExpiresAt : false;
+
+    const mm = String(Math.floor(remainingSec / 60)).padStart(2, "0");
+    const ss = String(remainingSec % 60).padStart(2, "0");
 
   useEffect(() => {
     if (!isOpen) return;
@@ -40,6 +64,7 @@ const RechargeModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
     setLoading(false);
     setResp(null);
     setError("");
+    setPixExpiresAt(Date.now() + PIX_TTL_MS);
   }, [isOpen]);
 
   async function handleCreateTopup() {
@@ -47,6 +72,8 @@ const RechargeModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
     setResp(null);
     setLoading(true);
 
+    const toastId = showPixLoadingToast("Gerando Código PIX. Aguarde...");
+    
     try {
       // Chamada recomendada: supabase.functions.invoke (já manda Authorization/apikey)
       const { data, error } = await supabase.functions.invoke<ApiResp>(
@@ -56,8 +83,11 @@ const RechargeModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
         },
       );
 
+      toast.dismiss(toastId);
       if (error) toast.error(error.message);
-      if (!data) toast.error("Resposta vazia da function.");
+      if (!data) toast.error("Resposta vazia do procedimento.");
+
+      setPixExpiresAt(Date.now() + PIX_TTL_MS);
 
       setResp(data);
       onSuccess?.();
@@ -69,10 +99,13 @@ const RechargeModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
   }
 
   async function handleCopy(text: string) {
+
     try {
       await navigator.clipboard.writeText(text);
+      toast.success("Copiado para a area de transferência.");
     } catch {
       // fallback: sem toast aqui, mas você pode integrar sonner depois
+      console.error("Erro ao copiar para a area de transferência.");
     }
   }
 
@@ -97,8 +130,9 @@ const RechargeModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
       type="button"
       disabled={loading}
       onClick={() => setAmountCents(o.cents)}
+      style={{ pointerEvents: loading ? "none" : "auto" }}
       className={[
-        "py-3 rounded-xl border border-white/10 font-black transition flex flex-col items-center justify-center",
+        "py-3 rounded-xl border disabled:opacity-60 border-white/10 font-black transition flex flex-col items-center justify-center",
         amountCents === o.cents
           ? "bg-indigo-600 text-white"
           : "bg-slate-800 text-slate-200 hover:bg-slate-700",
@@ -130,7 +164,9 @@ const RechargeModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
                 : `Gerar Pix (R$ ${amountBRL.toString().replace(".", ",")})`}
             </button>
 
-            <div className="mt-4 rounded-xl border border-white/10 bg-slate-900/40 p-4 space-y-3">
+            <div
+              style={{ pointerEvents: loading ? "none" : "auto", opacity: loading ? 0.5 : 1}}
+              className="mt-4 rounded-xl border border-white/10 bg-slate-900/40 p-4 space-y-3">
                 <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]">
                     Tabela de custos (créditos)
                 </p>
@@ -218,12 +254,13 @@ const RechargeModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
 
         {resp?.pix?.qr_code && (
           <div className="space-y-3 bg-slate-800/60 border border-white/10 rounded-xl p-4">
-            <p className="text-slate-300 font-black text-xs uppercase tracking-widest">
+            <p className="text-slate-300 font-black text-xs uppercase text-center tracking-widest">
               Pagamento via Pix
             </p>
 
             {/* QR CODE */}
             {resp?.pix?.qr_code_base64 ? (
+              <>
               <div className="w-full flex items-center justify-center">
                 <div className="bg-white rounded-2xl p-3 shadow-xl">
                   <img
@@ -233,11 +270,24 @@ const RechargeModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
                   />
                 </div>
               </div>
+              <div className="flex items-center justify-center">
+                <span className="text-sm font-black uppercase tracking-widest text-slate-400">
+                  Expira em
+                </span>
+
+                <span className={`ml-1 text-sm font-black ${isExpired ? "text-red-400" : "text-yellow-300"}`}>
+                  {isExpired ? "00:00" : `${mm}:${ss}`}
+                </span>
+              </div>
+              </>
             ) : (
               <p className="text-xs text-slate-400">
                 QR Code indisponível. Use o copia e cola abaixo.
               </p>
             )}
+
+            {/* Linha Horizontal */}
+            <div className="border-b border-white/10"></div>
 
             {/* COPIA E COLA EM 1 LINHA */}
             <div className="space-y-2">
@@ -260,6 +310,9 @@ const RechargeModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
                 </button>
               </div>
             </div>
+
+            {/* Linha Horizontal */}
+            <div className="border-b border-white/10"></div>
 
             <div className="flex gap-2 pt-1">
               <button

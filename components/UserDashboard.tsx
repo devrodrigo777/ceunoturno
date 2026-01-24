@@ -21,7 +21,7 @@ const UserDashboard: React.FC<DashboardProps> = ({
     <>
       {/* Overlay para fechar ao clicar fora */}
       {isOpen && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100]" onClick={onClose} />
+        <div className={`fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] transition-transform duration-500 ease-out`} onClick={onClose} />
       )}
 
       {/* Sidebar */}
@@ -30,10 +30,18 @@ const UserDashboard: React.FC<DashboardProps> = ({
         <div className="p-6 h-full flex flex-col">
           {/* Header do Perfil */}
           <div className="flex items-center gap-4 mb-8">
-            <img src={user.user_metadata.avatar_url} className="w-12 h-12 rounded-xl border-2 border-indigo-500" alt="Avatar" />
+            <img
+              src={user.user_metadata.avatar_url}
+              onError={(e) => {
+                const img = e.currentTarget;
+                if (img.src !== "./unknown.png") img.src = "./unknown.png";
+              }}
+              className="w-12 h-12 rounded-xl border-2 border-indigo-500"
+              alt="Avatar"
+              />
             <div>
               <h3 className="text-white font-black text-sm uppercase tracking-tighter">{user.user_metadata.full_name}</h3>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Explorador Estelar</p>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Viajante Estelar</p>
             </div>
             <button onClick={onClose} className="ml-auto text-slate-500 hover:text-white transition-colors">
               <i className="fa-solid fa-xmark"></i>
@@ -44,7 +52,7 @@ const UserDashboard: React.FC<DashboardProps> = ({
           <div className="bg-indigo-600/20 border border-indigo-500/30 rounded-2xl p-4 mb-8 flex items-center justify-between">
             <div>
               <span className="block text-[8px] text-indigo-300 font-black uppercase tracking-[0.2em] mb-1">Saldo Disponível</span>
-              <span className="text-2xl text-yellow-400 font-black">★ {credits}</span>
+              <span className="text-2xl text-yellow-400 font-black"><i className="fa-solid fa-bolt"></i> {credits}</span>
             </div>
             <button className="bg-indigo-500 hover:bg-indigo-400 text-white text-[9px] font-black px-3 py-2 rounded-lg transition-all active:scale-95"
               onClick={onRecharge}>
@@ -58,7 +66,7 @@ const UserDashboard: React.FC<DashboardProps> = ({
             
             <div className="space-y-3">
               {myAstros.length === 0 ? (
-                <p className="text-xs text-slate-600 italic">Você ainda não reivindicou astros neste quadrante.</p>
+                <p className="text-xs text-slate-600 italic">Você ainda não reivindicou astros no mapa estelar.</p>
               ) : (
                 myAstros.map(astro => (
                   <div key={astro.id} className="group bg-white/5 border border-white/5 hover:border-indigo-500/50 p-3 rounded-xl transition-all cursor-pointer" onClick={() => onFocusAstro(astro.x, astro.y)}>

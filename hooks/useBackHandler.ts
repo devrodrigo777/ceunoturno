@@ -1,105 +1,28 @@
-import { useCallback, useEffect } from "react";
+import React, { useCallback, useEffect } from "react";
 
-type BackState = {
-  isDashboardOpen: boolean;
-  isModalSobreOpen: boolean; // se você ainda usa isso
-  modalAberto: boolean;      // se "Sobre" é controlado por isso
-  isModalTermosOpen: boolean;
+type OverlayKey = 'dashboard' | 'sobre' | 'termos' | 'purchase' | 'preview' | 'astro';
+
+type Params = {
+  setOverlayStack: React.Dispatch<React.SetStateAction<OverlayKey[]>>;
+  openOverlay: (k: OverlayKey, state?: any, url?: string) => void;
 };
 
-type BackActions = {
-  closeDashboard: () => void;
-  openDashboard: () => void;
-
-  closeSobre: () => void;
-  openSobre: () => void;
-
-  closeTermos: () => void;
-  openTermos: () => void;
-
-  closeAstroDetails: () => void;
-
-  selectedAstroId: string | null
-};
-
-type Params = BackState & BackActions;
-
-export function useBackHandler({
-  isDashboardOpen,
-  isModalSobreOpen,
-  modalAberto,
-  isModalTermosOpen,
-  closeDashboard,
-  openDashboard,
-  closeSobre,
-  openSobre,
-  closeTermos,
-  openTermos,
-  selectedAstroId,
-  closeAstroDetails
-}: Params) {
-  const handleBack = useCallback(() => {
-
-    if (selectedAstroId) {
-        closeAstroDetails();
-
-        // opcional: limpar querystring ?astro=
-        const url = new URL(window.location.href);
-        url.searchParams.delete("astro");
-        history.replaceState(history.state, "", url.toString());
-
-        return;
-    }
-
-    // Prioridade: fecha o que está mais "em cima"
-    if (isModalTermosOpen) {
-      closeTermos();
-      openDashboard();
-      return;
-    }
-
-    if (isModalSobreOpen || modalAberto) {
-      closeSobre();
-      openDashboard();
-      return;
-    }
-
-    if (isDashboardOpen) {
-      closeDashboard();
-      return;
-    }
-  }, [
-    selectedAstroId,
-    closeAstroDetails,
-    isModalTermosOpen,
-    isModalSobreOpen,
-    modalAberto,
-    isDashboardOpen,
-    closeTermos,
-    openDashboard,
-    closeSobre,
-    closeDashboard,
-  ]);
-
+export function useBackHandler({ setOverlayStack, openOverlay }: Params) {
   useEffect(() => {
-    const onPopState = () => handleBack();
+    const onPopState = () => {
+      setOverlayStack((s) => s.slice(0, -1));
+    };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
-  }, [handleBack]);
+  }, [setOverlayStack]);
 
-  // helpers pra você usar nos botões e já empilhar no histórico
-  const pushDashboard = useCallback(() => {
-    openDashboard();
-    history.pushState({ ui: "dashboard" }, "");
-  }, [openDashboard]);
+  const closeOverlay = useCallback(() => {
+    history.back();
+  }, []);
 
-  const pushSobre = useCallback(() => {
-    openSobre();
-  }, [openSobre]);
+  const pushDashboard = useCallback(() => openOverlay("dashboard"), [openOverlay]);
+  const pushSobre = useCallback(() => openOverlay("sobre"), [openOverlay]);
+  const pushTermos = useCallback(() => openOverlay("termos"), [openOverlay]);
 
-  const pushTermos = useCallback(() => {
-    openTermos();
-  }, [openTermos]);
-
-  return { handleBack, pushDashboard, pushSobre, pushTermos };
+  return { closeOverlay, pushDashboard, pushSobre, pushTermos };
 }

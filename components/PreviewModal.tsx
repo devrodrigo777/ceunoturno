@@ -1,6 +1,7 @@
 import React from "react";
 import Modal from "./Modal";
 import { Astro } from "../types";
+import { formatAstroDate } from "../utils/formatDate";
 
 type Props = {
   isOpen: boolean;
@@ -56,7 +57,10 @@ const PreviewModal: React.FC<Props> = ({
               RA 00h 00m
             </p>
             <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">
-              Explorado por {previewAstro.user_name}
+              Por {previewAstro.user_name}
+            </p>
+            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">
+              {formatAstroDate(new Date())}
             </p>
           </div>
 

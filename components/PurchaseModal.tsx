@@ -31,10 +31,38 @@ type Props = {
   onConfirmPurchase: () => void;
 
   // preview
-  onOpenPreview: () => void;
+  onPreviewOpen: () => void;
 
   SKY_W: number;
   SKY_H: number;
+
+  // STARMAP
+  // Quadro estelar
+  starmapEnabled: boolean;
+  setStarmapEnabled: (v: boolean) => void;
+
+  starmapTitle: string;
+  setStarmapTitle: (v: string) => void;
+
+  locationQuery: string;
+  setLocationQuery: (v: string) => void;
+
+  locationResults: Array<{ id: number; label: string; lat: number; lng: number }>;
+  locationLoading: boolean;
+
+  selectedLocation: { id: number; label: string; lat: number; lng: number } | null;
+  setSelectedLocation: (v: { id: number; label: string; lat: number; lng: number } | null) => void;
+
+  eventDate: string;
+  setEventDate: (v: string) => void;
+
+  eventTime: string;
+  setEventTime: (v: string) => void;
+
+  hideTime: boolean;
+  setHideTime: (v: boolean) => void;
+
+  defaultUserName: string;
 };
 
 const PurchaseModal: React.FC<Props> = ({
@@ -53,11 +81,30 @@ const PurchaseModal: React.FC<Props> = ({
   removeImage,
   userBalance,
   onConfirmPurchase,
-  onOpenPreview,
+  onPreviewOpen,
   SKY_W,
   SKY_H,
+  starmapEnabled,
+  setStarmapEnabled,
+  starmapTitle,
+  setStarmapTitle,
+  locationQuery,
+  setLocationQuery,
+  locationResults,
+  locationLoading,
+  selectedLocation,
+  setSelectedLocation,
+  eventDate,
+  setEventDate,
+  eventTime,
+  setEventTime,
+  hideTime,
+  setHideTime,
+  defaultUserName,
 }) => {
   const [step, setStep] = useState<1 | 2>(1);
+  const [isLocationOpen, setIsLocationOpen] = useState(false);
+
 
   useEffect(() => {
     if (isOpen){
@@ -65,8 +112,25 @@ const PurchaseModal: React.FC<Props> = ({
       setType("star");
       setColor(ASTRO_COLORS[0]);
       setMsg("");
+
+      setStarmapEnabled(false);
+      setStarmapTitle(defaultUserName);
+
+      setLocationQuery("");
+      setSelectedLocation(null);
+
+      setEventDate("");
+      setEventTime("");
+      setHideTime(false);
+      setIsLocationOpen(false);
     }
-  }, [isOpen]);
+  }, [isOpen, defaultUserName]);
+
+  useEffect(() => {
+    if (!starmapEnabled) {
+      setIsLocationOpen(false);
+    }
+  }, [starmapEnabled]);
   
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Novo Astro - ${step==1 ? "Tipo" : "Confirmação"}`}>
@@ -94,7 +158,7 @@ const PurchaseModal: React.FC<Props> = ({
                     {ASTRO_NAMES[t]}
                   </span>
                   <span className="text-[9px] opacity-70 text-yellow-400">
-                    ★{quote.type_prices[t]}
+                    <i className="fa-solid fa-bolt"></i> {quote.type_prices[t]}
                   </span>
                 </button>
               ))}
@@ -119,12 +183,12 @@ const PurchaseModal: React.FC<Props> = ({
                     Região Estelar
                   </p>
                   <div className="flex items-center justify-center gap-2">
-                    <p className="text-white text-sm font-black">
+                    <div className="text-white text-sm font-black">
                       {ASTRO_AREAS[quote.area] || "Desconhecido"}
                       <p className="text-[10px] text-yellow-400">
                         {quote.base_price} <i className="fa-solid fa-star"></i>
                       </p>
-                    </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -238,14 +302,152 @@ const PurchaseModal: React.FC<Props> = ({
               </label>
               <textarea
                 maxLength={300}
-                value={msg}
+                value={msg.replace(/\n{3,}/g, "\n\n")}
                 onChange={(e) => setMsg(e.target.value)}
-                placeholder="O que você deseja transmitir ao firmamento?"
+                placeholder="Qual lembrança, promessa, objetivo, comemoração ou homenagem vai brilhar a partir de agora?"
                 className="w-full bg-slate-900 border border-white/10 rounded-xl p-4 text-white text-sm h-24 focus:ring-1 focus:ring-indigo-500 outline-none resize-none"
               />
+              <span className="block text-slate-500 text-[10px] font-black uppercase mb-2">
+                { 300 - msg.length } CARACTERES RESTANTES.
+              </span>
             </div>
 
-            
+            {/* QUADRO ESTELAR */}
+<div className="pt-4 border-t border-white10 space-y-3">
+  <div className="flex items-center justify-between">
+    <div>
+      <p className="text-slate-200 font-black uppercase tracking-widest text-10px">Quadro estelar</p>
+      <p className="text-slate-500 text-xs">Gere um mapa real com base em local e data.</p>
+    </div>
+
+    <button
+      type="button"
+      onClick={() => { setStarmapEnabled(!starmapEnabled); }}
+      className={[
+        "px-4 py-2 rounded-xl border font-black uppercase tracking-widest text-10px transition",
+        starmapEnabled
+          ? "bg-indigo-600 border-indigo-40030 text-white"
+          : "bg-slate-800 border-white10 text-slate-300 hover:bg-slate-700",
+      ].join(" ")}
+    >
+      {starmapEnabled ? (<><i className="fa-solid fa-chevron-up mr-2"></i> Não</>) : (<><i className="fa-solid fa-chevron-down mr-2"></i> Sim</>)}
+    </button>
+  </div>
+
+  {starmapEnabled && (
+    <div className="space-y-3">
+      {/* Título */}
+      <div>
+        <label className="block text-slate-500 text-10px font-black uppercase mb-2">
+          Título do quadro
+        </label>
+        <input
+          value={starmapTitle ?? ""}
+          onChange={(e) => setStarmapTitle(e.target.value)}
+          maxLength={60}
+          className="w-full bg-slate-900 border border-white10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+          placeholder="Ex: Nosso primeiro beijo"
+        />
+      </div>
+
+      {/* Local (autocomplete) */}
+      <div className="relative">
+        <label className="block text-slate-500 text-10px font-black uppercase mb-2">
+          Local do evento
+        </label>
+
+        <input
+          value={locationQuery ?? ""}
+          onFocus={() => setIsLocationOpen(true)}
+          onChange={(e) => {
+            setLocationQuery(e.target.value);
+            setIsLocationOpen(true);
+          }}
+          onBlur={() => {
+            // pequeno delay pra permitir clique no item do dropdown
+            window.setTimeout(() => setIsLocationOpen(false), 150);
+          }}
+          className="w-full bg-slate-900 border border-white10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+          placeholder="Digite uma cidade, estado ou país..."
+        />
+
+        {locationLoading && (
+          <div className="text-10px text-slate-500 font-bold uppercase tracking-widest mt-2">
+            Buscando...
+          </div>
+        )}
+
+        {isLocationOpen && !!locationResults.length && locationQuery.trim().length >= 3 && (
+          <div className="absolute z-50 mt-2 w-full bg-slate-950 border border-white10 rounded-xl overflow-hidden shadow-2xl">
+            {locationResults.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setSelectedLocation(r);
+                  setLocationQuery(r.label);
+                  setIsLocationOpen(false);
+                }}
+                className={[
+                  "w-full text-left px-4 py-3 text-sm border-b border-white5 hover:bg-white5 transition",
+                  selectedLocation?.id === r.id ? "bg-indigo-60020 text-white" : "text-slate-200",
+                ].join(" ")}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {selectedLocation && (
+            <div className="mt-2 text-[9px] text-slate-500 font-bold uppercase tracking-widest">
+              Selecionado: {selectedLocation.lat.toFixed(4)}, {selectedLocation.lng.toFixed(4)}
+            </div>
+          )}
+        </div>
+
+        {/* Data / Hora */}
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-slate-500 text-10px font-black uppercase mb-2">
+              Data
+            </label>
+            <input
+              type="date"
+              value={eventDate}
+              onChange={(e) => setEventDate(e.target.value)}
+              className="w-full bg-slate-900 border border-white10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-slate-500 text-10px font-black uppercase mb-2">
+              Hora
+            </label>
+            <input
+              type="time"
+              value={eventTime}
+              onChange={(e) => setEventTime(e.target.value)}
+              disabled={hideTime}
+              className="w-full bg-slate-900 border border-white10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
+            />
+          </div>
+        </div>
+
+        {/* Hide time */}
+        <label className="flex items-center gap-2 text-xs text-slate-300 font-bold">
+          <input
+            type="checkbox"
+            checked={hideTime}
+            onChange={(e) => setHideTime(e.target.checked)}
+          />
+          Não mostrar a hora
+        </label>
+      </div>
+    )}
+  </div>
+
 
             
 
@@ -264,14 +466,27 @@ const PurchaseModal: React.FC<Props> = ({
               </p>
             )}
 
-            <button
-              type="button"
-              onClick={onOpenPreview}
-              disabled={!pendingCoords}
-              className="w-full bg-slate-800 hover:bg-slate-700 text-white font-black py-3 rounded-xl transition-all uppercase tracking-widest border border-white/10 text-xs"
-            >
-              <i className="fa-solid fa-eye mr-2"></i> Prévia da Mensagem
-            </button>
+            <div className="flex grid-cols-2 gap-2 mt-4">
+              <button
+                type="button"
+                onClick={onPreviewOpen}
+                disabled={!pendingCoords}
+                className={`${starmapEnabled ? "col-span-1" : "col-span-2"} w-full bg-slate-800 hover:bg-slate-700 text-white font-black py-3 rounded-xl transition-all uppercase tracking-widest border border-white/10 text-[10px]`}
+              >
+                <i className="fa-solid fa-eye mr-1"></i> Prévia da Mensagem
+              </button>
+              {starmapEnabled && (
+                <button
+                  type="button"
+                  // onClick={onOpenPreview}
+                  // disabled={!pendingCoords}
+                  className="col-span-1 w-full bg-slate-800 hover:bg-slate-700 text-white font-black py-3 rounded-xl transition-all uppercase tracking-widest border border-white/10 text-[10px]"
+                >
+                  <i className="fa-solid fa-star mr-1"></i> Prévia do Quadro
+                </button>
+              )}
+              
+            </div>
           </div>
           </>
         )}

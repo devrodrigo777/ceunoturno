@@ -54,6 +54,7 @@ const AstroItem: React.FC<AstroItemProps> = ({ astro, onClick, pulseFxAt }) => {
             width: `${astro.size * 3.5}px`,
             height: `${astro.size * 3.5}px`,
             backgroundColor: astro.color,
+            
           }}
         />
 
@@ -87,7 +88,7 @@ const AstroItem: React.FC<AstroItemProps> = ({ astro, onClick, pulseFxAt }) => {
       </div>
       
       {/* Mini Label */}
-      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/90 text-white text-[9px] px-2 py-1 rounded whitespace-nowrap z-50 border border-white/10 uppercase font-black">
+      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 pointer-events-none display-none group-hover:block opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/90 text-white text-[9px] px-2 py-1 rounded whitespace-nowrap z-50 border border-white/10 uppercase font-black">
         {astro.user_name}
       </div>
     </div>
