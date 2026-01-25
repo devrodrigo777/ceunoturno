@@ -30,6 +30,16 @@ const AstroDetailsModal: React.FC<Props> = ({
   session,
 }) => {
 const [imgLoaded, setImgLoaded] = useState(false);
+const [isOwner, setIsOwner] = useState(false);
+
+useEffect(() => {
+  if (selectedAstro?.user_id === session?.user.id) {
+    setIsOwner(true);
+  } else {
+    setIsOwner(false);
+  }
+}, [selectedAstro, session]);
+
 
 useEffect(() => {
   // reseta quando troca de astro (senão fica "loaded" do anterior)
@@ -120,7 +130,7 @@ useEffect(() => {
             {/* LINHA HORIZONTAL */}
             <div className="col-span-10 h-px bg-white/10"></div>
 
-            {selectedAstro.user_id === session?.user.id && (
+            {isOwner && (
               selectedAstro.poster_enabled ? (
                 <button
                   onClick={onPoster}

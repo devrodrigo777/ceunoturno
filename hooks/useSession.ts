@@ -10,12 +10,9 @@ export const useSession = ({ setIsLoading, setShowIntro }) => {
             const { data: { session: currentSession } } = await supabase.auth.getSession();
             setSession(currentSession);
 
-            // 3. Caso a sessão exista, ele irá dar refresh, então pularemos splash e apresentação
-            // if(currentSession) {
-            //     setIsLoading(false);
-            //     setShowIntro(false);
-            // } else
-            //     setIsLoading(false);
+            // 3. Caso a sessão exista, ele seta null
+            if(!currentSession)
+                setSession(null);
         };
 
         initializeAuth();
@@ -27,6 +24,8 @@ export const useSession = ({ setIsLoading, setShowIntro }) => {
             if(newSession) {
                 setIsLoading(false);
                 setShowIntro(false);
+            } else {
+                setSession(null);
             }
         });
 
