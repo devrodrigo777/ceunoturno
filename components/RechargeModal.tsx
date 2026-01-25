@@ -444,7 +444,7 @@ const RechargeModal: React.FC<Props> = ({
                 Informe seu CPF
               </p>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center flex-col sm:flex-row gap-2">
                 <input
                   type="text"
                   placeholder="000.000.000-00"
