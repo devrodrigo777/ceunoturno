@@ -1,6 +1,13 @@
+const versionGuard = {
+  __CURRENT_VERSION__: "1.0.113a",
+  __VERSION_KEY__: "__version__",
+};
+
 export function enforceVersionReset() {
-  const currentVersion = import.meta.env.VITE_APP_VERSION;
-  const version_key = "__version__";
+  // Verifica se a versão está atualizada
+  const currentVersion = versionGuard.__CURRENT_VERSION__;
+  const version_key = versionGuard.__VERSION_KEY__;
+
   const prev = localStorage.getItem(version_key);
 
   if (prev && prev !== currentVersion) {
