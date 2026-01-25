@@ -3,12 +3,16 @@ import Modal from "./Modal";
 import { supabase } from "@/services/supabaseClient";
 import { toast } from "sonner";
 import { showPixLoadingToast } from "@/utils/toasts";
+import { isValidCPF, formatCPF } from "@/utils/formatCpf";
+import { User } from "@/types";
 
 type Props = {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void; // opcional: fechar modal, toast etc.
   closeAllOverlays: () => void;
+  closeTopupModal: () => void;
+  user: any;
 };
 
 type ApiResp = {
@@ -23,11 +27,26 @@ type ApiResp = {
   };
 };
 
-const RechargeModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, closeAllOverlays }) => {
+const RechargeModal: React.FC<Props> = ({
+  isOpen,
+  onClose,
+  onSuccess,
+  closeAllOverlays,
+  closeTopOverlay,
+  user,
+}) => {
   const [amountCents, setAmountCents] = useState<number>(1000);
   const [loading, setLoading] = useState(false);
   const [resp, setResp] = useState<ApiResp | null>(null);
   const [error, setError] = useState<string>("");
+
+  // Obrigatório ter CPF cadastrado para pagar com PIX
+  const [cpfFilled, setCpfFilled] = useState(false);
+  const [cpfError, setCpfError] = useState(false);
+  const [updatingCpf, setUpdatingCpf] = useState(false);
+  const [cpf, setCpf] = useState("");
+
+  const first_name = user?.user_metadata?.name.split(" ")[0] ?? "Viajante";
 
   const PIX_TTL_MS = 4 * 60 * 1000;
   const [pixExpiresAt, setPixExpiresAt] = useState<number | null>(null);
@@ -38,27 +57,84 @@ const RechargeModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, closeAllOv
     [amountCents],
   );
 
+  const completeSignup = async () => {
+    setUpdatingCpf(true);
+    const aguardeToast = toast.loading("Atualizando cadastro...", {
+      duration: 0,
+    });
+
+    try {
+      if (!cpf || !isValidCPF(cpf)) {
+        toast.error("CPF inválido");
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke(
+        "update-user-cpf",
+        {
+          body: { cpf },
+        },
+      );
+
+      if (error) {
+        toast.error("Erro ao atualizar CPF");
+        return;
+      }
+
+      if (data?.updated) {
+        toast.success("Cadastro atualizado com sucesso!");
+        setCpfFilled(data.cpf_filled); // true
+      } else {
+        toast.warning("CPF não foi atualizado");
+        setCpfFilled(false);
+      }
+    } catch (err) {
+      toast.error("Erro inesperado");
+    } finally {
+      // closeAllOverlays();
+      setUpdatingCpf(false);
+      toast.dismiss(aguardeToast);
+    }
+  };
+
+  const handleCPFChange = (value: string) => {
+    const masked = formatCPF(value);
+    setCpf(masked);
+
+    const raw = masked.replace(/\D/g, "");
+    setCpfError(raw.length === 11 && !isValidCPF(raw));
+  };
+
   useEffect(() => {
-      if (!pixExpiresAt) return;
+    if (user && isValidCPF(user?.cpf ?? "")) {
+      setCpfFilled(true);
+      setCpf(user.user_metadata.cpf);
+    }
+  }, [user]);
 
-      const tick = () => {
-        const sec = Math.max(0, Math.ceil((pixExpiresAt - Date.now()) / 1000));
-        setRemainingSec(sec);
-      };
+  useEffect(() => {
+    if (!pixExpiresAt) return;
 
-      tick();
-      const id = window.setInterval(tick, 1000);
-      return () => window.clearInterval(id);
-    }, [pixExpiresAt]);
+    const tick = () => {
+      const sec = Math.max(0, Math.ceil((pixExpiresAt - Date.now()) / 1000));
+      setRemainingSec(sec);
+    };
 
-    const isExpired = pixExpiresAt ? Date.now() >= pixExpiresAt : false;
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [pixExpiresAt]);
 
-    const mm = String(Math.floor(remainingSec / 60)).padStart(2, "0");
-    const ss = String(remainingSec % 60).padStart(2, "0");
+  const isExpired = pixExpiresAt ? Date.now() >= pixExpiresAt : false;
+
+  const mm = String(Math.floor(remainingSec / 60)).padStart(2, "0");
+  const ss = String(remainingSec % 60).padStart(2, "0");
 
   useEffect(() => {
     if (!isOpen) return;
 
+    setCpfFilled(false);
+    setCpf("");
     // Estado inicial (o que você quiser como default)
     setAmountCents(2000);
     setLoading(false);
@@ -67,13 +143,61 @@ const RechargeModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, closeAllOv
     setPixExpiresAt(Date.now() + PIX_TTL_MS);
   }, [isOpen]);
 
+  /** Listener de payment */
+  useEffect(() => {
+    if (!resp?.topup_id) return;
+
+    const toastId = toast.loading("Aguardando pagamento...");
+
+    const channel = supabase
+      .channel(`topup-${resp.topup_id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "mp_topups",
+          filter: `id=eq.${resp.topup_id}`,
+        },
+        (payload) => {
+          const newStatus = payload.new.status;
+          const amountCents = payload.new.amount_cents;
+          toast.dismiss(toastId);
+
+          if (newStatus === "approved") {
+            toast.success(`Pagamento confirmado! ✨${amountCents} energias foram adicionadas.`);
+
+            // opcional: fechar modal
+            // onClose();
+
+            // opcional: atualizar saldo do usuário
+            // refetchUser();
+            closeTopOverlay();
+
+            supabase.removeChannel(channel);
+          }
+
+          if (newStatus === "failed" || newStatus === "cancelled") {
+            toast.error("O pagamento não foi concluído.");
+            supabase.removeChannel(channel);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [resp?.topup_id]);
+
+
   async function handleCreateTopup() {
     setError("");
     setResp(null);
     setLoading(true);
 
     const toastId = showPixLoadingToast("Gerando Código PIX. Aguarde...");
-    
+
     try {
       // Chamada recomendada: supabase.functions.invoke (já manda Authorization/apikey)
       const { data, error } = await supabase.functions.invoke<ApiResp>(
@@ -90,6 +214,9 @@ const RechargeModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, closeAllOv
       setPixExpiresAt(Date.now() + PIX_TTL_MS);
 
       setResp(data);
+
+      
+
       onSuccess?.();
     } catch (e: any) {
       toast.error(e?.message ?? "Erro ao criar recarga.");
@@ -99,7 +226,6 @@ const RechargeModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, closeAllOv
   }
 
   async function handleCopy(text: string) {
-
     try {
       await navigator.clipboard.writeText(text);
       toast.success("Copiado para a area de transferência.");
@@ -110,143 +236,241 @@ const RechargeModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, closeAllOv
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Recarregar energias">
-      <div className="space-y-4">
-        {!resp && (
-          <>
-            <p className="text-slate-400 text-sm">
-              Selecione um valor e gere o Pix para recarregar suas Energias
-              Estelares.
-            </p>
-
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { cents: 1000, label: "R$ 10", credits: 600 },
-                { cents: 2000, label: "R$ 20", credits: 1200,bonus: 1200 },
-                { cents: 5000, label: "R$ 50", credits: 4000, bonus: 700 },
-              ].map((o) => (
-                <button
-      key={o.cents}
-      type="button"
-      disabled={loading}
-      onClick={() => setAmountCents(o.cents)}
-      style={{ pointerEvents: loading ? "none" : "auto" }}
-      className={[
-        "py-3 rounded-xl border disabled:opacity-60 border-white/10 font-black transition flex flex-col items-center justify-center",
-        amountCents === o.cents
-          ? "bg-indigo-600 text-white"
-          : "bg-slate-800 text-slate-200 hover:bg-slate-700",
-      ].join(" ")}
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={cpfFilled ? "Recarregar energias" : "Complete seu cadastro"}
     >
+      <div className="space-y-4">
+        {cpfFilled && (
+          <>
+            {!resp && (
+              <>
+                <p className="text-slate-400 text-sm">
+                  Selecione um valor e gere o Pix para recarregar suas Energias
+                  Estelares.
+                </p>
 
-      <span className="text-xs uppercase tracking-widest">{o.label}</span>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { cents: 1000, label: "R$ 10", credits: 600 },
+                    { cents: 2000, label: "R$ 20", credits: 1200, bonus: 1200 },
+                    { cents: 5000, label: "R$ 50", credits: 4000, bonus: 700 },
+                  ].map((o) => (
+                    <button
+                      key={o.cents}
+                      type="button"
+                      disabled={loading}
+                      onClick={() => setAmountCents(o.cents)}
+                      style={{ pointerEvents: loading ? "none" : "auto" }}
+                      className={[
+                        "py-3 rounded-xl border disabled:opacity-60 border-white/10 font-black transition flex flex-col items-center justify-center",
+                        amountCents === o.cents
+                          ? "bg-indigo-600 text-white"
+                          : "bg-slate-800 text-slate-200 hover:bg-slate-700",
+                      ].join(" ")}
+                    >
+                      <span className="text-xs uppercase tracking-widest">
+                        {o.label}
+                      </span>
 
-      <span className="text-[10px] text-slate-300/80 font-black uppercase tracking-widest mt-1">
-        +{o.credits} energias
-      </span>
-        {o.bonus && (
-                <span className="text-[10px] text-yellow-300/80 font-black uppercase tracking-widest mt-1">
-                    +{o.bonus} bônus
-                </span>  
-        )}
-    </button>
-              ))}
-            </div>
+                      <span className="text-[10px] text-slate-300/80 font-black uppercase tracking-widest mt-1">
+                        +{o.credits} energias
+                      </span>
+                      {o.bonus && (
+                        <span className="text-[10px] text-yellow-300/80 font-black uppercase tracking-widest mt-1">
+                          +{o.bonus} bônus
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
 
-            <button
-              type="button"
-              onClick={handleCreateTopup}
-              disabled={loading}
-              className="w-full bg-yellow-400 text-slate-950 font-black py-4 rounded-xl shadow-xl transition-all uppercase tracking-widest text-xs disabled:opacity-60"
-            >
-              {loading
-                ? "Gerando Pix..."
-                : `Gerar Pix (R$ ${amountBRL.toString().replace(".", ",")})`}
-            </button>
+                <button
+                  type="button"
+                  onClick={handleCreateTopup}
+                  disabled={loading}
+                  className="w-full bg-yellow-400 text-slate-950 font-black py-4 rounded-xl shadow-xl transition-all uppercase tracking-widest text-xs disabled:opacity-60"
+                >
+                  {loading
+                    ? "Gerando Pix..."
+                    : `Gerar Pix (R$ ${amountBRL.toString().replace(".", ",")})`}
+                </button>
 
-            <div
-              style={{ pointerEvents: loading ? "none" : "auto", opacity: loading ? 0.5 : 1}}
-              className="mt-4 rounded-xl border border-white/10 bg-slate-900/40 p-4 space-y-3">
-                <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]">
+                <div
+                  style={{
+                    pointerEvents: loading ? "none" : "auto",
+                    opacity: loading ? 0.5 : 1,
+                  }}
+                  className="mt-4 rounded-xl border border-white/10 bg-slate-900/40 p-4 space-y-3"
+                >
+                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]">
                     Tabela de custos (créditos)
-                </p>
-                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-3 leading-relaxed">
+                  </p>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-3 leading-relaxed">
                     Total do astro = preço base da área + tipo.
-                </p>
-                <div className="grid grid-cols-1 gap-3">
+                  </p>
+                  <div className="grid grid-cols-1 gap-3">
                     {/* Áreas */}
                     <div className="bg-slate-900/60 border border-white/10 rounded-xl p-3">
-                    <p className="text-[10px] text-indigo-300 font-black uppercase tracking-widest mb-2">
+                      <p className="text-[10px] text-indigo-300 font-black uppercase tracking-widest mb-2">
                         Preço base por área
-                    </p>
-                    
+                      </p>
 
-                    <div className="space-y-1 text-[11px] text-slate-200 font-bold">
+                      <div className="space-y-1 text-[11px] text-slate-200 font-bold">
                         <div className="flex items-center justify-between">
-                        <span>Zênite <span className="text-slate-500">(Norte)</span></span>
-                        <span className="text-yellow-400 font-black">500 <i className="fa-solid fa-star text-[10px] text-yellow-400"></i></span>
+                          <span>
+                            Zênite{" "}
+                            <span className="text-slate-500">(Norte)</span>
+                          </span>
+                          <span className="text-yellow-400 font-black">
+                            500{" "}
+                            <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
+                          </span>
                         </div>
                         <div className="flex items-center justify-between">
-                        <span>Nadir <span className="text-slate-500">(Sul)</span></span>
-                        <span className="text-yellow-400 font-black">100 <i className="fa-solid fa-star text-[10px] text-yellow-400"></i></span>
+                          <span>
+                            Nadir <span className="text-slate-500">(Sul)</span>
+                          </span>
+                          <span className="text-yellow-400 font-black">
+                            100{" "}
+                            <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
+                          </span>
                         </div>
                         <div className="flex items-center justify-between">
-                        <span>Horizonte Leste</span>
-                        <span className="text-yellow-400 font-black">350 <i className="fa-solid fa-star text-[10px] text-yellow-400"></i></span>
+                          <span>Horizonte Leste</span>
+                          <span className="text-yellow-400 font-black">
+                            350{" "}
+                            <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
+                          </span>
                         </div>
                         <div className="flex items-center justify-between">
-                        <span>Horizonte Oeste</span>
-                        <span className="text-yellow-400 font-black">350 <i className="fa-solid fa-star text-[10px] text-yellow-400"></i></span>
+                          <span>Horizonte Oeste</span>
+                          <span className="text-yellow-400 font-black">
+                            350{" "}
+                            <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
+                          </span>
                         </div>
                         <div className="flex items-center justify-between">
-                        <span>Horizonte <span className="text-slate-500">(Equador)</span></span>
-                        <span className="text-yellow-400 font-black">700 <i className="fa-solid fa-star text-[10px] text-yellow-400"></i></span>
+                          <span>
+                            Horizonte{" "}
+                            <span className="text-slate-500">(Equador)</span>
+                          </span>
+                          <span className="text-yellow-400 font-black">
+                            700{" "}
+                            <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
+                          </span>
                         </div>
-                    </div>
+                      </div>
                     </div>
 
                     {/* Tipos */}
                     <div className="bg-slate-900/60 border border-white/10 rounded-xl p-3">
-                    <p className="text-[10px] text-indigo-300 font-black uppercase tracking-widest mb-2">
+                      <p className="text-[10px] text-indigo-300 font-black uppercase tracking-widest mb-2">
                         Preço por tipo
-                    </p>
+                      </p>
 
-                    <div className="space-y-1 text-[11px] text-slate-200 font-bold">
+                      <div className="space-y-1 text-[11px] text-slate-200 font-bold">
                         <div className="flex items-center justify-between">
-                        <span>Estrela</span>
-                        <span className="text-yellow-400 font-black">50 <i className="fa-solid fa-star text-[10px] text-yellow-400"></i></span>
+                          <span>Estrela</span>
+                          <span className="text-yellow-400 font-black">
+                            50{" "}
+                            <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
+                          </span>
                         </div>
                         <div className="flex items-center justify-between">
-                        <span>Planeta</span>
-                        <span className="text-yellow-400 font-black">+300 <i className="fa-solid fa-star text-[10px] text-yellow-400"></i></span>
+                          <span>Planeta</span>
+                          <span className="text-yellow-400 font-black">
+                            +300{" "}
+                            <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
+                          </span>
                         </div>
                         <div className="flex items-center justify-between">
-                        <span>Nebulosa</span>
-                        <span className="text-yellow-400 font-black">+700 <i className="fa-solid fa-star text-[10px] text-yellow-400"></i></span>
+                          <span>Nebulosa</span>
+                          <span className="text-yellow-400 font-black">
+                            +700{" "}
+                            <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
+                          </span>
                         </div>
+                      </div>
                     </div>
-                    </div>
-                    
 
                     {/* Pulsar */}
                     <div className="bg-slate-900/60 border border-white/10 rounded-xl p-3">
-                    <p className="text-[10px] text-indigo-300 font-black uppercase tracking-widest mb-2">
+                      <p className="text-[10px] text-indigo-300 font-black uppercase tracking-widest mb-2">
                         Interação
-                    </p>
+                      </p>
 
-                    <div className="flex items-center justify-between text-[11px] text-slate-200 font-bold">
+                      <div className="flex items-center justify-between text-[11px] text-slate-200 font-bold">
                         <span>Gerar Pôster Estelar</span>
-                        <span className="text-yellow-400 font-black">1000 <i className="fa-solid fa-star text-[10px] text-yellow-400"></i></span>
-                    </div>
-                    <div className="flex items-center justify-between text-[11px] text-slate-200 font-bold">
+                        <span className="text-yellow-400 font-black">
+                          1000{" "}
+                          <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-slate-200 font-bold">
                         <span>Pulsar</span>
-                        <span className="text-yellow-400 font-black">30 <i className="fa-solid fa-star text-[10px] text-yellow-400"></i></span>
+                        <span className="text-yellow-400 font-black">
+                          30{" "}
+                          <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
+                        </span>
+                      </div>
                     </div>
-                    </div>
+                  </div>
                 </div>
-                </div>
+              </>
+            )}
+          </>
+        )}
 
+        {!cpfFilled && (
+          <>
+            <p className="text-slate-100 font-black text-xs uppercase text-center tracking-widest my-0">
+              {first_name},
+            </p>
+            <p className="text-slate-400 font-black text-xs uppercase text-center tracking-widest mt-1">
+              nós usamos o Mercado Pago para cobranças do{" "}
+              <i>
+                <span class="text-blue-400">Céu</span>
+                <span class="text-yellow-400">Noturno</span>
+              </i>
+            </p>
+            <p className="text-slate-400 font-black text-xs uppercase text-center tracking-widest mt-1">
+              E gerar pagamentos via PIX, é obrigatório a identificação do
+              pagador.
+            </p>
+            <div className="space-y-3 bg-slate-800/60 border border-white/10 rounded-xl p-4">
+              <p className="text-slate-300 font-black text-xs uppercase text-center tracking-widest">
+                Informe seu CPF
+              </p>
 
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="000.000.000-00"
+                  disabled={updatingCpf}
+                  value={cpf}
+                  onChange={(e) => handleCPFChange(e.target.value)}
+                  className="text-white bg-slate-900/60 border border-white/10 rounded-xl p-3"
+                />
+
+                <button
+                  onClick={completeSignup}
+                  className={`bg-indigo-500/30 border border-indigo-500/30 text-indigo-200 disabled:text-indigo-400 disabled:opacity-70 rounded-xl p-3 disabled:cursor-not-allowed disabled:bg-indigo-500/30 disabled:border-indigo-500/30 hover:bg-indigo-500 hover:border-indigo-500 hover:text-white transition-colors`}
+                  disabled={!isValidCPF(cpf) || updatingCpf}
+                >
+                  Confirmar
+                </button>
+              </div>
+              {cpfError && (
+                <p className="text-red-400 font-black text-xs uppercase text-center tracking-widest mt-1">
+                  CPF inválido. Tente novamente.
+                </p>
+              )}
+            </div>
+            <p className="text-slate-400 font-black text-xs uppercase text-center tracking-widest mt-1">
+              Após completar seu cadastro, esta tela não será mais exibida.
+            </p>
           </>
         )}
 
@@ -265,24 +489,26 @@ const RechargeModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, closeAllOv
             {/* QR CODE */}
             {resp?.pix?.qr_code_base64 ? (
               <>
-              <div className="w-full flex items-center justify-center">
-                <div className="bg-white rounded-2xl p-3 shadow-xl">
-                  <img
-                    src={`data:image/png;base64,${resp.pix.qr_code_base64}`}
-                    alt="QR Code Pix"
-                    className="w-56 h-56"
-                  />
+                <div className="w-full flex items-center justify-center">
+                  <div className="bg-white rounded-2xl p-3 shadow-xl">
+                    <img
+                      src={`data:image/png;base64,${resp.pix.qr_code_base64}`}
+                      alt="QR Code Pix"
+                      className="w-56 h-56"
+                    />
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center justify-center">
-                <span className="text-sm font-black uppercase tracking-widest text-slate-400">
-                  Expira em
-                </span>
+                <div className="flex items-center justify-center">
+                  <span className="text-sm font-black uppercase tracking-widest text-slate-400">
+                    Expira em
+                  </span>
 
-                <span className={`ml-1 text-sm font-black ${isExpired ? "text-red-400" : "text-yellow-300"}`}>
-                  {isExpired ? "00:00" : `${mm}:${ss}`}
-                </span>
-              </div>
+                  <span
+                    className={`ml-1 text-sm font-black ${isExpired ? "text-red-400" : "text-yellow-300"}`}
+                  >
+                    {isExpired ? "00:00" : `${mm}:${ss}`}
+                  </span>
+                </div>
               </>
             ) : (
               <p className="text-xs text-slate-400">

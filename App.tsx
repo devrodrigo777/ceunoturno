@@ -141,8 +141,6 @@ const App: React.FC = () => {
   sessionUserIdRef.current = session?.user?.id ?? null;
 
   
-
-  
   /**
    * Realtime hooks
    */
@@ -251,7 +249,7 @@ useEffect(() => {
     if (!selectedAstro) return;
 
     const url = `${window.location.origin}?astro=${selectedAstro.id}`;
-
+    
     const res = await useShareOrCopy(
       url,
       "Céu Noturno",
@@ -701,6 +699,9 @@ useEffect(() => {
               setEventTime={setEventTime}
               hideTime={hideTime}
               setHideTime={setHideTime}
+
+              user={user}
+              defaultUserName={user.name}
           />
         </>
       )}
@@ -755,6 +756,8 @@ useEffect(() => {
         onClose={() => closeTopOverlay()}
         onPaid={() => closeTopOverlay()}
         closeAllOverlays={closeAllOverlays}
+        closeTopOverlay={closeTopOverlay}
+        user={session?.user}
       />
     </>
   );

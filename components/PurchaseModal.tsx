@@ -4,6 +4,7 @@ import Modal from "./Modal";
 import { ASTRO_AREAS, ASTRO_COLORS, ASTRO_NAMES } from "../constants";
 import { calculateFrontendPrice } from "../utils/astro";
 
+
 type Props = {
   isOpen: boolean;
   onClose: () => void;
@@ -63,6 +64,7 @@ type Props = {
   setHideTime: (v: boolean) => void;
 
   defaultUserName: string;
+  user: any;
 };
 
 const PurchaseModal: React.FC<Props> = ({
@@ -101,13 +103,18 @@ const PurchaseModal: React.FC<Props> = ({
   hideTime,
   setHideTime,
   defaultUserName,
+  user
 }) => {
   const [step, setStep] = useState<1 | 2>(1);
   const [isLocationOpen, setIsLocationOpen] = useState(false);
+  
 
 
   useEffect(() => {
     if (isOpen){
+
+      
+
       setStep(1);
       setType("star");
       setColor(ASTRO_COLORS[0]);
@@ -125,6 +132,8 @@ const PurchaseModal: React.FC<Props> = ({
       setIsLocationOpen(false);
     }
   }, [isOpen, defaultUserName]);
+
+  
 
   useEffect(() => {
     if (!starmapEnabled) {

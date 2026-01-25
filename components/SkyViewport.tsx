@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Astro } from "../types";
+import { Astro, User } from "../types";
 
 import SkyScene from "./SkyScene";
 import PurchaseModal from "./PurchaseModal";
@@ -122,6 +122,7 @@ type Props = {
   setHideTime: (v: boolean) => void;
 
   defaultUserName: string;
+  user: User | null;
 };
 
 const SkyViewport: React.FC<Props> = ({
@@ -215,6 +216,7 @@ const SkyViewport: React.FC<Props> = ({
   hideTime,
   setHideTime,
   defaultUserName,
+  user,
 }) => {
     const isMinimapDraggingRef = React.useRef(false);
 
@@ -448,6 +450,8 @@ const SkyViewport: React.FC<Props> = ({
           setEventTime={setEventTime}
           hideTime={hideTime}
           setHideTime={setHideTime}
+
+          user={user}
         />
 
         <PreviewModal

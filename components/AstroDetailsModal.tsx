@@ -31,6 +31,7 @@ const AstroDetailsModal: React.FC<Props> = ({
 }) => {
 const [imgLoaded, setImgLoaded] = useState(false);
 const [isOwner, setIsOwner] = useState(false);
+const [fontSize, setFontSize] = useState(18);
 
 useEffect(() => {
   if (selectedAstro?.user_id === session?.user.id) {
@@ -40,6 +41,17 @@ useEffect(() => {
   }
 }, [selectedAstro, session]);
 
+const min_fontSize = 18;
+const max_fontSize = 24;
+
+useEffect(() => {
+  console.log(selectedAstro?.message?.length);
+  if (selectedAstro?.message?.length < 30) {
+    setFontSize(max_fontSize);
+  } else {
+    setFontSize(min_fontSize);
+  }
+}, [selectedAstro?.message, setFontSize]);
 
 useEffect(() => {
   // reseta quando troca de astro (senão fica "loaded" do anterior)
@@ -51,7 +63,7 @@ useEffect(() => {
     <Modal isOpen={isAstroModalOpen} onClose={onClose} title="Explorando">
       {!!selectedAstro && (
         <div className="animate-entrance backdrop-blur-sm text-center py-6">
-          <div className="w-24 h-24 mx-auto mb-8 flex items-center justify-center relative">
+          <div className="w-24 h-24 mx-auto mb-4 flex items-center justify-center relative">
             <div
               className="absolute inset-0 rounded-full blur-3xl opacity-30"
               style={{ backgroundColor: selectedAstro.color }}
@@ -89,9 +101,23 @@ useEffect(() => {
           )}
 
 
-          <p className="text-2xl text-white font-serif italic leading-relaxed px-4">
-            {selectedAstro.message}
-          </p>
+          <div className="relative mt-6 px-6">
+            {/* Aspas decorativas */}
+            <span className="absolute -top-6 left-2 text-[120px] leading-none text-white/5 font-serif select-none">
+              “
+            </span>
+
+            <p
+              className="relative  md:text-2xl xs:text-3xl text-xl  text-white font-serif italic leading-relaxed text-center"
+              style={{ wordBreak: "break-word" }}
+              >
+              {selectedAstro.message}
+            </p>
+
+            <span className="absolute top-10 right-2 text-[120px] leading-none text-white/5 font-serif select-none">
+              ”
+            </span>
+          </div>
 
           <div className="mt-8 pt-6 border-t border-white/5 space-y-1">
             <p className="text-[10px] text-indigo-400 font-mono uppercase tracking-[0.2em]">
