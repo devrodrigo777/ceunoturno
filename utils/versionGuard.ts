@@ -1,5 +1,5 @@
 const versionGuard = {
-  __CURRENT_VERSION__: "1.0.113a",
+  __CURRENT_VERSION__: "1.1.0a",
   __VERSION_KEY__: "__version__",
 };
 

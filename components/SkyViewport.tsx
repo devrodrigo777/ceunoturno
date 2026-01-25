@@ -468,6 +468,7 @@ const SkyViewport: React.FC<Props> = ({
           onPoster={onPoster}
           isPulsing={isPulsing}
           isLogged={!!session?.user}
+          session={session}
         />
 
         

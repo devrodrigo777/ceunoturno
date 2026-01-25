@@ -235,6 +235,10 @@ const RechargeModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, closeAllOv
                     </p>
 
                     <div className="flex items-center justify-between text-[11px] text-slate-200 font-bold">
+                        <span>Gerar Pôster Estelar</span>
+                        <span className="text-yellow-400 font-black">1000 <i className="fa-solid fa-star text-[10px] text-yellow-400"></i></span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-slate-200 font-bold">
                         <span>Pulsar</span>
                         <span className="text-yellow-400 font-black">30 <i className="fa-solid fa-star text-[10px] text-yellow-400"></i></span>
                     </div>

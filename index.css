@@ -5,6 +5,18 @@ body {
             font-family: 'Inter', sans-serif;
             touch-action: none;
         }
+        .animate-blinkScale {
+            animation: blinkScale 1s infinite;
+        }
+
+        @keyframes blinkScale {
+            0% { transform: scale(1); }
+            50% { transform: scale(0.98); }
+            100% { transform: scale(1); }
+        }
+
+
+
         @keyframes twinkle {
             0%, 100% { opacity: 0.3; transform: scale(1); }
             50% { opacity: 1; transform: scale(1.2); }

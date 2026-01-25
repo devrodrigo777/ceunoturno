@@ -21,6 +21,7 @@ import ModalTermos from "./components/ModalTermos";
 import RechargeModal from "./components/RechargeModal";
 import { enforceVersionReset } from "./utils/versionGuard";
 import PosterModal from "./components/PosterModal";
+import PosterConfirmModal from "./components/PosterConfirmModal";
 
 const App: React.FC = () => {
   enforceVersionReset();
@@ -88,7 +89,8 @@ const App: React.FC = () => {
     ? (astros.find((a) => a.id === selectedAstroId) ?? null)
     : null;
 
-  type OverlayKey = 'dashboard' | 'sobre' | 'termos' | 'purchase' | 'preview' | 'astro' | 'recharge' | 'poster';
+  type OverlayKey = 'dashboard' | 'sobre' | 'termos' | 'purchase' | 'preview' | 'astro' | 'recharge'
+    | 'poster' | 'posterConfirm';
 
   const [overlayStack, setOverlayStack] = useState<OverlayKey[]>([]);
   const isMapBlocked = overlayStack.length > 0;
@@ -102,7 +104,7 @@ const App: React.FC = () => {
   }, []);
 
   const closeTopOverlay = () => {
-    history.back();
+    window.history.back();
   };
 
   const closeAllOverlays = () => {
@@ -154,7 +156,7 @@ const App: React.FC = () => {
     currentZoom,
   });
 
-  useEffect(() => {
+  useEffect(() => {  console.log(overlayStack);
     if (isMapBlocked) stopDragging();
   }, [isMapBlocked, stopDragging]);
 
@@ -162,7 +164,6 @@ const App: React.FC = () => {
   const handlePulse = async () => {
     if (!session?.user) return toast.error("Precisas de estar logado!");
     if (!selectedAstro) return;
-
 
     setIsPulsing(true);
     
@@ -176,8 +177,11 @@ const App: React.FC = () => {
       
       if (error)
         toast.error(error.message);
-      else
+      else {
+        closeTopOverlay();
         setSelectedAstroId(null);
+        toast.success("Astro pulsado com sucesso!");
+      }
 
       // não precisa setAstros: o realtime UPDATE já vai chegar e atualizar o mapa [file:1]
       // seu saldo também atualiza via realtime do profiles [file:1]
@@ -188,9 +192,59 @@ const App: React.FC = () => {
     }
   };
 
+  const POSTER_PRICE = 1000;
+useEffect(() => {
+  const onPopState = () => {
+    console.log("POPSTATE!", overlayStack ); // ou só log
+    setOverlayStack((s) => s.slice(0, -1));
+  };
+  window.addEventListener("popstate", onPopState);
+  return () => window.removeEventListener("popstate", onPopState);
+}, [setOverlayStack]);
+  const handlePosterPurchase = async () => {
+    if (!session?.user) return toast.error("Precisa estar logado!");
+    if (!selectedAstro) return;
+
+    try {
+      const { data, error } = await supabase.rpc("purchase_poster", {
+        pastroid: selectedAstro.id,
+      });
+      // fecha confirmação
+      closeTopOverlay(); // fecha posterConfirm
+
+      if (error) toast.error(error.message);
+      if (!data) toast.error("Resposta vazia do procedimento.");
+
+      toast.success("Pôster estelar ativado. Parabéns!");
+
+      
+
+      // abre o modal do pôster
+      openOverlay("poster");
+    } catch (e: any) {
+      const msg = String(e?.message ?? e);
+
+      if (msg.includes("insufficient_credits")) toast.error("Saldo insuficiente.");
+      else if (msg.includes("forbidden")) toast.error("Você não é dono desse astro.");
+      else toast.error(msg);
+    } finally {
+      console.log(overlayStack);
+    }
+  };
+
   const handlePoster = () => {
-    console.log("handle poster");
-    openOverlay("poster");
+    if (!selectedAstro) return;
+
+    // só dono vê o botão, mas mantém segurança aqui também
+    if (selectedAstro.user_id !== session?.user?.id) {
+      return toast.error("Somente o dono do astro pode gerar o pôster.");
+    }
+
+    if (selectedAstro.poster_enabled) {
+      openOverlay("poster");
+    } else {
+      openOverlay("posterConfirm");
+    }
   }
 
   const handleShare = async () => {
@@ -368,6 +422,7 @@ const App: React.FC = () => {
     setErrorCircle,
     openOverlay,
     setLoginMarker,
+    closeTopOverlay
   });
 
   const handleEnd = (clientX: number, clientY: number) => {
@@ -656,6 +711,14 @@ const App: React.FC = () => {
           astro={selectedAstro}
         />
 
+        <PosterConfirmModal
+        isOpen={isOpen("posterConfirm")}
+        onClose={() => closeTopOverlay()}
+        astro={selectedAstro}
+        price={POSTER_PRICE}
+        onConfirm={() => handlePosterPurchase()}
+      />
+
       {isOpen("dashboard") && (
         <UserDashboard
           user={session?.user}
@@ -670,7 +733,7 @@ const App: React.FC = () => {
               x: -(astro_x * currentZoom.current) + width / 2,
               y: -(astro_y * currentZoom.current) + height / 2,
             };
-            currentZoom.current = 1.5;
+
             closeTopOverlay();
           }}
           onRecharge={() => {

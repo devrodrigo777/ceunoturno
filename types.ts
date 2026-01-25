@@ -34,6 +34,8 @@ export interface Astro {
   starmapHideTime?: boolean | null;
   starmap_lat?: number | null;
   starmap_lng?: number | null;
+
+  poster_enabled?: boolean;
 }
 
 export interface User {

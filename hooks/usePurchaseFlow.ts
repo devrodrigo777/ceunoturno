@@ -34,6 +34,8 @@ type Params = {
     setIsDashboardOpen:  React.Dispatch<React.SetStateAction<boolean>>;
     setErrorCircle: React.Dispatch<React.SetStateAction<{ x:number; y:number; r:number } | null>>;
     openOverlay: (k: any, state?: any, url?: string) => void;
+
+    closeTopOverlay: () => void
 };
 
 export function usePurchaseFlow({
@@ -57,7 +59,8 @@ export function usePurchaseFlow({
     getVelocity,
     setIsDashboardOpen,
     setErrorCircle,
-    openOverlay
+    openOverlay,
+    closeTopOverlay
 }: Params) {
     const [quote, setQuote] = useState<any>(null);
 
@@ -180,9 +183,8 @@ export function usePurchaseFlow({
         setTitulo("");
         setPendingCoords(null);
         resetImage();
-        setIsPurchaseModalOpen(false);
-        setIsDashboardOpen(true);
-    }, [resetImage, setIsPurchaseModalOpen, setIsDashboardOpen]);
+        closeTopOverlay();
+    }, [resetImage, closeTopOverlay]);
 
     const onPickImage = useCallback(
         (file: File | null) => {
@@ -365,7 +367,7 @@ export function usePurchaseFlow({
                 p_starmap_hide_time: starmapEnabled ? hideTime : false,
             });
 
-            if (error) throw new Error(error.message);
+            if (error) toast.error(error.message);
 
             const novoAstro = data;
 

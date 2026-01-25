@@ -154,7 +154,7 @@ document.body.appendChild(wrap);
   center: null,       // Initial center coordinates in equatorial transformation [hours, degrees, degrees],
                       // otherwise [degrees, degrees, degrees], 3rd parameter is orientation, null = default center
   orientationfixed: true,  // Keep orientation angle the same as center[2]
-  background: { fill: "#000000", opacity: 1, stroke: "#000000", width: 1.5 },
+  background: { fill: "none", opacity: 0, stroke: "none", width: 1.5 },
   adaptable: false,    // Sizes are increased with higher zoom-levels
   interactive: false,  // Enable zooming and rotation with mousewheel and dragging
   disableAnimations: true, // Disable all animations

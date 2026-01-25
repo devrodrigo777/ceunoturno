@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import Modal from "./Modal";
 import { Astro } from "../types";
 import { formatAstroDate } from "@/utils/formatDate";
@@ -14,6 +14,8 @@ type Props = {
   isPulsing: boolean;
   isLogged: boolean;
   isAstroModalOpen: boolean;
+
+  session: any;
 };
 
 const AstroDetailsModal: React.FC<Props> = ({
@@ -25,7 +27,15 @@ const AstroDetailsModal: React.FC<Props> = ({
   isPulsing,
   isLogged,
   isAstroModalOpen,
+  session,
 }) => {
+const [imgLoaded, setImgLoaded] = useState(false);
+
+useEffect(() => {
+  // reseta quando troca de astro (senão fica "loaded" do anterior)
+  setImgLoaded(false);
+}, [selectedAstro?.image_path]);
+
   return (
 
     <Modal isOpen={isAstroModalOpen} onClose={onClose} title="Explorando">
@@ -48,12 +58,26 @@ const AstroDetailsModal: React.FC<Props> = ({
           </div>
 
           {selectedAstro.image_path && (
-            <img
-              src={selectedAstro.image_path}
-              alt="Imagem do astro"
-              className="w-full max-h-80 object-cover rounded-2xl border border-white/10 mt-6"
-            />
+            <div className="relative mt-6 w-full h-80 rounded-2xl border border-white/10 overflow-hidden bg-slate-900">
+              {/* skeleton */}
+              {!imgLoaded && (
+                <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-slate-800 to-slate-900" />
+              )}
+
+              <img
+                src={selectedAstro.image_path}
+                alt="Imagem do astro"
+                loading="lazy"
+                className={[
+                  "absolute inset-0 w-full h-full object-cover transition-opacity duration-300",
+                  imgLoaded ? "opacity-100" : "opacity-0",
+                ].join(" ")}
+                onLoad={() => setImgLoaded(true)}
+                onError={() => setImgLoaded(true)} // para não ficar skeleton infinito
+              />
+            </div>
           )}
+
 
           <p className="text-2xl text-white font-serif italic leading-relaxed px-4">
             {selectedAstro.message}
@@ -77,7 +101,7 @@ const AstroDetailsModal: React.FC<Props> = ({
               disabled={!isLogged || isPulsing}
               className="col-span-4 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-60 text-slate-950 font-black py-4 rounded-xl uppercase tracking-widest text-sm flex items-center justify-center gap-2"
             >
-              {isPulsing ? "Pulsando" : "Pulsar"}
+              {isPulsing ? "Pulsando" : (<>Pulsar <span className="text-black">30 <i className="fa-solid fa-bolt"></i></span></>)}
             </button>
 
             <button
@@ -87,23 +111,39 @@ const AstroDetailsModal: React.FC<Props> = ({
               <i className="fa-solid fa-share-nodes"></i> Compartilhar
             </button>
 
+            {isLogged && (
+              <p className="text-xs col-span-10 text-slate-500 font-bold uppercase tracking-widest">
+                Pulsar custa 30 Energias Estelares.
+              </p>
+            )}
+
             {/* LINHA HORIZONTAL */}
             <div className="col-span-10 h-px bg-white/10"></div>
 
-            <button
-              onClick={onPoster}
-              className="col-span-10 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 rounded-xl uppercase tracking-widest text-sm flex items-center justify-center gap-2"
-            >
-              <i className="fa-solid fa-share-nodes"></i> Gerar Mapa Estelar <span className="text-yellow-400">200 <i className="fa-solid fa-bolt"></i></span>
-            </button>
+            {selectedAstro.user_id === session?.user.id && (
+              selectedAstro.poster_enabled ? (
+                <button
+                  onClick={onPoster}
+                  className="animate-blinkScale col-span-10 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 rounded-xl uppercase tracking-widest text-sm flex items-center justify-center gap-2"
+                >
+                  <i className="fa-solid fa-star"></i> Abrir Pôster Estelar
+                </button>
+              ) : (
+                <button
+                  onClick={onPoster}
+                  className="animate-blinkScale col-span-10 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 rounded-xl uppercase tracking-widest text-sm flex items-center justify-center gap-2"
+                >
+                  <i className="fa-solid fa-star"></i> Obter Pôster Estelar{" "}
+                  <span className="text-yellow-400">
+                    1000 <i className="fa-solid fa-bolt"></i>
+                  </span>
+                </button>
+              )
+            )}
 
           </div>
 
-          {isLogged && (
-            <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-3">
-              Pulsar custa 30 Energias Estelares.
-            </p>
-          )}
+          
 
           <div className="mt-4 flex items-center justify-between gap-6 text-[12px] font-black uppercase tracking-widest text-slate-400">
             <div className="flex items-center gap-2">
