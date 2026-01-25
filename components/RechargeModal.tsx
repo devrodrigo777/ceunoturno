@@ -46,6 +46,7 @@ const RechargeModal: React.FC<Props> = ({
   const [updatingCpf, setUpdatingCpf] = useState(false);
   const [cpf, setCpf] = useState("");
 
+  const [fullname, setFullname] = useState("");
   const first_name = user?.user_metadata?.name.split(" ")[0] ?? "Viajante";
 
   const PIX_TTL_MS = 4 * 60 * 1000;
@@ -72,7 +73,7 @@ const RechargeModal: React.FC<Props> = ({
       const { data, error } = await supabase.functions.invoke(
         "update-user-cpf",
         {
-          body: { cpf },
+          body: { cpf, full_name: first_name },
         },
       );
 
@@ -141,6 +142,8 @@ const RechargeModal: React.FC<Props> = ({
     setResp(null);
     setError("");
     setPixExpiresAt(Date.now() + PIX_TTL_MS);
+
+    setFullname(user?.user_metadata?.name || "Viajante Anônimo");
   }, [isOpen]);
 
   /** Listener de payment */
@@ -436,14 +439,35 @@ const RechargeModal: React.FC<Props> = ({
               </i>
             </p>
             <p className="text-slate-400 font-black text-xs uppercase text-center tracking-widest mt-1">
-              E gerar pagamentos via PIX, é obrigatório a identificação do
-              pagador.
+              E gerar pagamentos via PIX, é obrigatório a identificação do pagador.
             </p>
+
             <div className="space-y-3 bg-slate-800/60 border border-white/10 rounded-xl p-4">
+            <p className="text-slate-300 font-black text-xs uppercase text-center tracking-widest">
+                Nome de Viajante Estelar
+            </p>
+            <div className="flex items-center flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  placeholder=""
+                  // disabled={updatingCpf}
+                  value={fullname}
+                  onChange={(e) => setFullname(e.target.value)}
+                  className="text-white bg-slate-900/60 border border-white/10 rounded-xl p-3"
+                />
+                <p className="text-slate-400 font-black text-[8px] uppercase text-center tracking-widest mt-1">
+                  Esse nome aparecerá em todos os astros que você registrar.</p>
+                <p className="text-red-400 font-black text-[8px] uppercase text-center tracking-widest mt-1">
+                  Não pode ser alterado posteriormente.
+                </p>
+                
+              </div>
+              {/* Horizontal line */}
+              <div className="w-full h-px bg-slate-500/60"></div>
               <p className="text-slate-300 font-black text-xs uppercase text-center tracking-widest">
                 Informe seu CPF
               </p>
-
+              
               <div className="flex items-center flex-col sm:flex-row gap-2">
                 <input
                   type="text"

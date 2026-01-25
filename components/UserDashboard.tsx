@@ -17,6 +17,7 @@ interface DashboardProps {
 const UserDashboard: React.FC<DashboardProps> = ({ 
   isOpen, onClose, user, credits, myAstros, onAbout, onLogout, onFocusAstro, onTerms, onRecharge
 }) => {
+  // console.log(user);
   return (
     <>
       {/* Overlay para fechar ao clicar fora */}
@@ -40,7 +41,7 @@ const UserDashboard: React.FC<DashboardProps> = ({
               alt="Avatar"
               />
             <div>
-              <h3 className="text-white font-black text-sm uppercase tracking-tighter">{user.user_metadata.full_name}</h3>
+              <h3 className="text-white font-black text-sm uppercase tracking-tighter">{user?.full_name || user?.user_metadata?.full_name || "Desconhecido"}</h3>
               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Viajante Estelar</p>
             </div>
             <button onClick={onClose} className="ml-auto text-slate-500 hover:text-white transition-colors">
