@@ -575,10 +575,10 @@ const RechargeModal: React.FC<Props> = ({
                     
                     {/* Informar o destinatário (Rodrigo) */}
                     <p className="text-slate-500 font-black text-[9px] uppercase text-center tracking-widest">
-                      Os pagamentos via PIX do <span class="text-slate-400">Céu Noturno</span> são processados automaticamente via <span class="text-slate-400">Mercado Pago.</span> para o seguinte recebedor:
+                      Os pagamentos via PIX do <span class="text-slate-400">Céu Noturno</span> são seguros e processados automaticamente via <span class="text-slate-400">Mercado Pago.</span> para o seguinte recebedor:
                     </p>
                     <p className="text-slate-400 font-black text-[9px] uppercase text-center tracking-widest mt-1">
-                      Rodrigo Lopes Chaves de Aguiar
+                      Graça Maria Lopes
                     </p>
 
                     {/* QR CODE */}
