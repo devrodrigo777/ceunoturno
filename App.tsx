@@ -193,7 +193,7 @@ const App: React.FC = () => {
   const POSTER_PRICE = 1000;
 useEffect(() => {
   const onPopState = () => {
-    console.log("POPSTATE!", overlayStack ); // ou só log
+    // console.log("POPSTATE!", overlayStack ); // ou só log
     setOverlayStack((s) => s.slice(0, -1));
   };
   window.addEventListener("popstate", onPopState);

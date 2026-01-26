@@ -1,6 +1,21 @@
 import { supabase } from '@/services/supabaseClient';
 import { useEffect, useState, useRef } from 'react';
 
+export const useProfile = () => {
+    const [profile, setProfile] = useState<any>(null);
+
+    useEffect(() => {
+        const fetchProfile = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            setProfile(user);
+        };
+
+        fetchProfile();
+    }, []);
+
+    return { profile };
+}
+
 export const useSession = ({ setIsLoading, setShowIntro }) => {
     const [session, setSession] = useState<any>(null);
 

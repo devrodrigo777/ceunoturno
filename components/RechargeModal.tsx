@@ -45,6 +45,8 @@ const RechargeModal: React.FC<Props> = ({
   const [cpfError, setCpfError] = useState(false);
   const [updatingCpf, setUpdatingCpf] = useState(false);
   const [cpf, setCpf] = useState("");
+  const [profileImg, setProfileImg] = useState("");
+  const [showSkeleton, setShowSkeleton] = useState(true);
 
   const [fullname, setFullname] = useState("");
   const first_name = user?.user_metadata?.name.split(" ")[0] ?? "Viajante";
@@ -106,12 +108,7 @@ const RechargeModal: React.FC<Props> = ({
     setCpfError(raw.length === 11 && !isValidCPF(raw));
   };
 
-  useEffect(() => {
-    if (user && isValidCPF(user?.cpf ?? "")) {
-      setCpfFilled(true);
-      setCpf(user.user_metadata.cpf);
-    }
-  }, [user]);
+  
 
   useEffect(() => {
     if (!pixExpiresAt) return;
@@ -131,19 +128,47 @@ const RechargeModal: React.FC<Props> = ({
   const mm = String(Math.floor(remainingSec / 60)).padStart(2, "0");
   const ss = String(remainingSec % 60).padStart(2, "0");
 
+  // Estado inicial para o CPF
   useEffect(() => {
     if (!isOpen) return;
 
-    setCpfFilled(false);
-    setCpf("");
+    setLoading(true);
+    setShowSkeleton(true);
+
+    (async () => {
+      const { data, error } = await supabase.functions.invoke("fetch-my-profile", {
+        body: { columns: ["cpf", "full_name", "avatar_url"] },
+      });
+
+      setLoading(false);
+      setShowSkeleton(false);
+      if (error) {
+        toast.error("Erro ao carregar seu cadastro.");
+        closeTopOverlay();
+        return;
+      }
+
+      const p = data?.profile;
+      const cpfRaw = String(p?.cpf ?? "").replace(/\D/g, "");
+      const fullName = String(p?.full_name ?? "");
+
+      setCpf(formatCPF(cpfRaw));
+      setCpfFilled(cpfRaw.length === 11 && isValidCPF(cpfRaw));
+      setFullname(fullName || user?.user_metadata?.name || "Viajante Estelar");
+      setProfileImg(p?.avatar_url ?? user?.user_metadata?.avatar_url ?? "./unknown.png");
+    })();
+  }, [isOpen]);
+
+  // Outros estados iniciais
+  useEffect(() => {
+    if (!isOpen) return;
+
     // Estado inicial (o que você quiser como default)
     setAmountCents(2000);
     setLoading(false);
     setResp(null);
     setError("");
     setPixExpiresAt(Date.now() + PIX_TTL_MS);
-
-    setFullname(user?.user_metadata?.name || "Viajante Anônimo");
   }, [isOpen]);
 
   /** Listener de payment */
@@ -245,344 +270,393 @@ const RechargeModal: React.FC<Props> = ({
       title={cpfFilled ? "Recarregar energias" : "Complete seu cadastro"}
     >
       <div className="space-y-4">
-        {cpfFilled && (
+        {showSkeleton && (
           <>
-            {!resp && (
-              <>
-                <p className="text-slate-400 text-sm">
-                  Selecione um valor e gere o Pix para recarregar suas Energias
-                  Estelares.
-                </p>
+            <div className="relative h-[150px] w-full inset-0 animate-pulse bg-gradient-to-br from-slate-800 to-slate-900">
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="size-10 rounded-full border-4 border-white/20 border-t-white animate-spin" />
+                  <div className="text-white font-black text-xs uppercase tracking-widest">
+                    Carregando informações...
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { cents: 1000, label: "R$ 10", credits: 600 },
-                    { cents: 2000, label: "R$ 20", credits: 1200, bonus: 1200 },
-                    { cents: 5000, label: "R$ 50", credits: 4000, bonus: 700 },
-                  ].map((o) => (
+        {!showSkeleton && (
+          <>
+            {cpfFilled && (
+              <>
+                {!resp && (
+                  <>
+                    <p className="text-slate-400 text-sm">
+                      Selecione um valor e gere o Pix para recarregar suas Energias
+                      Estelares.
+                    </p>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { cents: 1000, label: "R$ 10", credits: 600 },
+                        { cents: 2000, label: "R$ 20", credits: 1200, bonus: 1200 },
+                        { cents: 5000, label: "R$ 50", credits: 4000, bonus: 700 },
+                      ].map((o) => (
+                        <button
+                          key={o.cents}
+                          type="button"
+                          disabled={loading}
+                          onClick={() => setAmountCents(o.cents)}
+                          style={{ pointerEvents: loading ? "none" : "auto" }}
+                          className={[
+                            "py-3 rounded-xl border disabled:opacity-60 border-white/10 font-black transition flex flex-col items-center justify-center",
+                            amountCents === o.cents
+                              ? "bg-indigo-600 text-white"
+                              : "bg-slate-800 text-slate-200 hover:bg-slate-700",
+                          ].join(" ")}
+                        >
+                          <span className="text-xs uppercase tracking-widest">
+                            {o.label}
+                          </span>
+
+                          <span className="text-[10px] text-slate-300/80 font-black uppercase tracking-widest mt-1">
+                            +{o.credits} energias
+                          </span>
+                          {o.bonus && (
+                            <span className="text-[10px] text-yellow-300/80 font-black uppercase tracking-widest mt-1">
+                              +{o.bonus} bônus
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Pequeno quadro mostrando o nome e o CPF do usuário */}
+                    <div className="bg-slate-900/40 p-4 rounded-xl border border-white/10 flex items-center gap-3">
+                      <img
+                        src={profileImg}
+                        onError={(e) => {
+                          const img = e.currentTarget;
+                          if (img.src !== "./unknown.png") img.src = "./unknown.png";
+                        }}
+                        className="w-12 h-12 rounded-xl border-2 border-indigo-500"
+                        alt="Avatar"
+                      />
+                      <div>
+                        <h3 className="text-white font-black text-sm uppercase tracking-tighter">{fullname || user?.full_name || user?.user_metadata?.full_name || "Desconhecido"}</h3>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">CPF: {cpf}</p>
+                      </div>
+                    </div>
+
                     <button
-                      key={o.cents}
                       type="button"
+                      onClick={handleCreateTopup}
                       disabled={loading}
-                      onClick={() => setAmountCents(o.cents)}
-                      style={{ pointerEvents: loading ? "none" : "auto" }}
-                      className={[
-                        "py-3 rounded-xl border disabled:opacity-60 border-white/10 font-black transition flex flex-col items-center justify-center",
-                        amountCents === o.cents
-                          ? "bg-indigo-600 text-white"
-                          : "bg-slate-800 text-slate-200 hover:bg-slate-700",
-                      ].join(" ")}
+                      className="w-full bg-yellow-400 text-slate-950 font-black py-4 rounded-xl shadow-xl transition-all uppercase tracking-widest text-xs disabled:opacity-60"
                     >
-                      <span className="text-xs uppercase tracking-widest">
-                        {o.label}
-                      </span>
-
-                      <span className="text-[10px] text-slate-300/80 font-black uppercase tracking-widest mt-1">
-                        +{o.credits} energias
-                      </span>
-                      {o.bonus && (
-                        <span className="text-[10px] text-yellow-300/80 font-black uppercase tracking-widest mt-1">
-                          +{o.bonus} bônus
-                        </span>
-                      )}
+                      {loading
+                        ? "Gerando Pix..."
+                        : `Gerar Pix (R$ ${amountBRL.toString().replace(".", ",")})`}
                     </button>
-                  ))}
-                </div>
 
-                <button
-                  type="button"
-                  onClick={handleCreateTopup}
-                  disabled={loading}
-                  className="w-full bg-yellow-400 text-slate-950 font-black py-4 rounded-xl shadow-xl transition-all uppercase tracking-widest text-xs disabled:opacity-60"
-                >
-                  {loading
-                    ? "Gerando Pix..."
-                    : `Gerar Pix (R$ ${amountBRL.toString().replace(".", ",")})`}
-                </button>
-
-                <div
-                  style={{
-                    pointerEvents: loading ? "none" : "auto",
-                    opacity: loading ? 0.5 : 1,
-                  }}
-                  className="mt-4 rounded-xl border border-white/10 bg-slate-900/40 p-4 space-y-3"
-                >
-                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]">
-                    Tabela de custos (créditos)
-                  </p>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-3 leading-relaxed">
-                    Total do astro = preço base da área + tipo.
-                  </p>
-                  <div className="grid grid-cols-1 gap-3">
-                    {/* Áreas */}
-                    <div className="bg-slate-900/60 border border-white/10 rounded-xl p-3">
-                      <p className="text-[10px] text-indigo-300 font-black uppercase tracking-widest mb-2">
-                        Preço base por área
+                    <div
+                      style={{
+                        pointerEvents: loading ? "none" : "auto",
+                        opacity: loading ? 0.5 : 1,
+                      }}
+                      className="mt-4 rounded-xl border border-white/10 bg-slate-900/40 p-4 space-y-3"
+                    >
+                      <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]">
+                        Tabela de custos (créditos)
                       </p>
+                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-3 leading-relaxed">
+                        Total do astro = preço base da área + tipo.
+                      </p>
+                      <div className="grid grid-cols-1 gap-3">
+                        {/* Áreas */}
+                        <div className="bg-slate-900/60 border border-white/10 rounded-xl p-3">
+                          <p className="text-[10px] text-indigo-300 font-black uppercase tracking-widest mb-2">
+                            Preço base por área
+                          </p>
 
-                      <div className="space-y-1 text-[11px] text-slate-200 font-bold">
-                        <div className="flex items-center justify-between">
-                          <span>
-                            Zênite{" "}
-                            <span className="text-slate-500">(Norte)</span>
-                          </span>
-                          <span className="text-yellow-400 font-black">
-                            500{" "}
-                            <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
-                          </span>
+                          <div className="space-y-1 text-[11px] text-slate-200 font-bold">
+                            <div className="flex items-center justify-between">
+                              <span>
+                                Zênite{" "}
+                                <span className="text-slate-500">(Norte)</span>
+                              </span>
+                              <span className="text-yellow-400 font-black">
+                                500{" "}
+                                <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span>
+                                Nadir <span className="text-slate-500">(Sul)</span>
+                              </span>
+                              <span className="text-yellow-400 font-black">
+                                100{" "}
+                                <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span>Horizonte Leste</span>
+                              <span className="text-yellow-400 font-black">
+                                350{" "}
+                                <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span>Horizonte Oeste</span>
+                              <span className="text-yellow-400 font-black">
+                                350{" "}
+                                <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span>
+                                Horizonte{" "}
+                                <span className="text-slate-500">(Equador)</span>
+                              </span>
+                              <span className="text-yellow-400 font-black">
+                                700{" "}
+                                <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex items-center justify-between">
-                          <span>
-                            Nadir <span className="text-slate-500">(Sul)</span>
-                          </span>
-                          <span className="text-yellow-400 font-black">
-                            100{" "}
-                            <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
-                          </span>
+
+                        {/* Tipos */}
+                        <div className="bg-slate-900/60 border border-white/10 rounded-xl p-3">
+                          <p className="text-[10px] text-indigo-300 font-black uppercase tracking-widest mb-2">
+                            Preço por tipo
+                          </p>
+
+                          <div className="space-y-1 text-[11px] text-slate-200 font-bold">
+                            <div className="flex items-center justify-between">
+                              <span>Estrela</span>
+                              <span className="text-yellow-400 font-black">
+                                50{" "}
+                                <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span>Planeta</span>
+                              <span className="text-yellow-400 font-black">
+                                +300{" "}
+                                <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span>Nebulosa</span>
+                              <span className="text-yellow-400 font-black">
+                                +700{" "}
+                                <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex items-center justify-between">
-                          <span>Horizonte Leste</span>
-                          <span className="text-yellow-400 font-black">
-                            350{" "}
-                            <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>Horizonte Oeste</span>
-                          <span className="text-yellow-400 font-black">
-                            350{" "}
-                            <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>
-                            Horizonte{" "}
-                            <span className="text-slate-500">(Equador)</span>
-                          </span>
-                          <span className="text-yellow-400 font-black">
-                            700{" "}
-                            <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
-                          </span>
+
+                        {/* Pulsar */}
+                        <div className="bg-slate-900/60 border border-white/10 rounded-xl p-3">
+                          <p className="text-[10px] text-indigo-300 font-black uppercase tracking-widest mb-2">
+                            Interação
+                          </p>
+
+                          <div className="flex items-center justify-between text-[11px] text-slate-200 font-bold">
+                            <span>Gerar Pôster Estelar</span>
+                            <span className="text-yellow-400 font-black">
+                              1000{" "}
+                              <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px] text-slate-200 font-bold">
+                            <span>Pulsar</span>
+                            <span className="text-yellow-400 font-black">
+                              30{" "}
+                              <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
-
-                    {/* Tipos */}
-                    <div className="bg-slate-900/60 border border-white/10 rounded-xl p-3">
-                      <p className="text-[10px] text-indigo-300 font-black uppercase tracking-widest mb-2">
-                        Preço por tipo
-                      </p>
-
-                      <div className="space-y-1 text-[11px] text-slate-200 font-bold">
-                        <div className="flex items-center justify-between">
-                          <span>Estrela</span>
-                          <span className="text-yellow-400 font-black">
-                            50{" "}
-                            <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>Planeta</span>
-                          <span className="text-yellow-400 font-black">
-                            +300{" "}
-                            <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>Nebulosa</span>
-                          <span className="text-yellow-400 font-black">
-                            +700{" "}
-                            <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Pulsar */}
-                    <div className="bg-slate-900/60 border border-white/10 rounded-xl p-3">
-                      <p className="text-[10px] text-indigo-300 font-black uppercase tracking-widest mb-2">
-                        Interação
-                      </p>
-
-                      <div className="flex items-center justify-between text-[11px] text-slate-200 font-bold">
-                        <span>Gerar Pôster Estelar</span>
-                        <span className="text-yellow-400 font-black">
-                          1000{" "}
-                          <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-[11px] text-slate-200 font-bold">
-                        <span>Pulsar</span>
-                        <span className="text-yellow-400 font-black">
-                          30{" "}
-                          <i className="fa-solid fa-star text-[10px] text-yellow-400"></i>
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                  </>
+                )}
               </>
             )}
-          </>
-        )}
 
-        {!cpfFilled && (
-          <>
-            <p className="text-slate-100 font-black text-xs uppercase text-center tracking-widest my-0">
-              {first_name},
-            </p>
-            <p className="text-slate-400 font-black text-xs uppercase text-center tracking-widest mt-1">
-              nós usamos o Mercado Pago para cobranças do{" "}
-              <i>
-                <span class="text-blue-400">Céu</span>
-                <span class="text-yellow-400">Noturno</span>
-              </i>
-            </p>
-            <p className="text-slate-400 font-black text-xs uppercase text-center tracking-widest mt-1">
-              E gerar pagamentos via PIX, é obrigatório a identificação do pagador.
-            </p>
-
-            <div className="space-y-3 bg-slate-800/60 border border-white/10 rounded-xl p-4">
-            <p className="text-slate-300 font-black text-xs uppercase text-center tracking-widest">
-                Nome de Viajante Estelar
-            </p>
-            <div className="flex items-center flex-col sm:flex-row gap-2">
-                <input
-                  type="text"
-                  placeholder=""
-                  // disabled={updatingCpf}
-                  value={fullname}
-                  onChange={(e) => setFullname(e.target.value)}
-                  className="text-white bg-slate-900/60 border border-white/10 rounded-xl p-3"
-                />
-                <p className="text-slate-400 font-black text-[8px] uppercase text-center tracking-widest mt-1">
-                  Esse nome aparecerá em todos os astros que você registrar.</p>
-                <p className="text-red-400 font-black text-[8px] uppercase text-center tracking-widest mt-1">
-                  Não pode ser alterado posteriormente.
-                </p>
-                
-              </div>
-              {/* Horizontal line */}
-              <div className="w-full h-px bg-slate-500/60"></div>
-              <p className="text-slate-300 font-black text-xs uppercase text-center tracking-widest">
-                Informe seu CPF
-              </p>
-              
-              <div className="flex items-center flex-col sm:flex-row gap-2">
-                <input
-                  type="text"
-                  placeholder="000.000.000-00"
-                  disabled={updatingCpf}
-                  value={cpf}
-                  onChange={(e) => handleCPFChange(e.target.value)}
-                  className="text-white bg-slate-900/60 border border-white/10 rounded-xl p-3"
-                />
-
-                <button
-                  onClick={completeSignup}
-                  className={`bg-indigo-500/30 border border-indigo-500/30 text-indigo-200 disabled:text-indigo-400 disabled:opacity-70 rounded-xl p-3 disabled:cursor-not-allowed disabled:bg-indigo-500/30 disabled:border-indigo-500/30 hover:bg-indigo-500 hover:border-indigo-500 hover:text-white transition-colors`}
-                  disabled={!isValidCPF(cpf) || updatingCpf}
-                >
-                  Confirmar
-                </button>
-              </div>
-              {cpfError && (
-                <p className="text-red-400 font-black text-xs uppercase text-center tracking-widest mt-1">
-                  CPF inválido. Tente novamente.
-                </p>
-              )}
-            </div>
-            <p className="text-slate-400 font-black text-xs uppercase text-center tracking-widest mt-1">
-              Após completar seu cadastro, esta tela não será mais exibida.
-            </p>
-          </>
-        )}
-
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/30 text-red-200 rounded-xl p-3 text-sm">
-            {error}
-          </div>
-        )}
-
-        {resp?.pix?.qr_code && (
-          <div className="space-y-3 bg-slate-800/60 border border-white/10 rounded-xl p-4">
-            <p className="text-slate-300 font-black text-xs uppercase text-center tracking-widest">
-              Pagamento via Pix
-            </p>
-
-            {/* QR CODE */}
-            {resp?.pix?.qr_code_base64 ? (
+            {!cpfFilled && (
               <>
-                <div className="w-full flex items-center justify-center">
-                  <div className="bg-white rounded-2xl p-3 shadow-xl">
-                    <img
-                      src={`data:image/png;base64,${resp.pix.qr_code_base64}`}
-                      alt="QR Code Pix"
-                      className="w-56 h-56"
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center justify-center">
-                  <span className="text-sm font-black uppercase tracking-widest text-slate-400">
-                    Expira em
-                  </span>
+                <p className="text-slate-100 font-black text-xs uppercase text-center tracking-widest my-0">
+                  {first_name},
+                </p>
+                <p className="text-slate-400 font-black text-xs uppercase text-center tracking-widest mt-1">
+                  nós usamos o Mercado Pago para cobranças do{" "}
+                  <i>
+                    <span className="text-blue-400">Céu</span>
+                    <span className="text-yellow-400">Noturno</span>
+                  </i>
+                </p>
+                <p className="text-slate-400 font-black text-xs uppercase text-center tracking-widest mt-1">
+                  E gerar pagamentos via PIX, é obrigatório a identificação do pagador.
+                </p>
 
-                  <span
-                    className={`ml-1 text-sm font-black ${isExpired ? "text-red-400" : "text-yellow-300"}`}
-                  >
-                    {isExpired ? "00:00" : `${mm}:${ss}`}
-                  </span>
+                <div className="space-y-3 bg-slate-800/60 border border-white/10 rounded-xl p-4">
+                <p className="text-slate-300 font-black text-xs uppercase text-center tracking-widest">
+                    Nome de Viajante Estelar
+                </p>
+                <div className="flex items-center flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      placeholder=""
+                      // disabled={updatingCpf}
+                      value={fullname}
+                      onChange={(e) => setFullname(e.target.value)}
+                      className="text-white bg-slate-900/60 border border-white/10 rounded-xl p-3"
+                    />
+                    <p className="text-slate-400 font-black text-[8px] uppercase text-center tracking-widest mt-1">
+                      Esse nome aparecerá em todos os astros que você registrar.</p>
+                    <p className="text-red-400 font-black text-[8px] uppercase text-center tracking-widest mt-1">
+                      Não pode ser alterado posteriormente.
+                    </p>
+                    
+                  </div>
+                  {/* Horizontal line */}
+                  <div className="w-full h-px bg-slate-500/60"></div>
+                  <p className="text-slate-300 font-black text-xs uppercase text-center tracking-widest">
+                    Informe seu CPF
+                  </p>
+                  
+                  <div className="flex items-center flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      placeholder="000.000.000-00"
+                      disabled={updatingCpf}
+                      value={cpf}
+                      onChange={(e) => handleCPFChange(e.target.value)}
+                      className="text-white bg-slate-900/60 border border-white/10 rounded-xl p-3"
+                    />
+
+                    <button
+                      onClick={completeSignup}
+                      className={`bg-indigo-500/30 border border-indigo-500/30 text-indigo-200 disabled:text-indigo-400 disabled:opacity-70 rounded-xl p-3 disabled:cursor-not-allowed disabled:bg-indigo-500/30 disabled:border-indigo-500/30 hover:bg-indigo-500 hover:border-indigo-500 hover:text-white transition-colors`}
+                      disabled={!isValidCPF(cpf) || updatingCpf}
+                    >
+                      Confirmar
+                    </button>
+                  </div>
+                  {cpfError && (
+                    <p className="text-red-400 font-black text-xs uppercase text-center tracking-widest mt-1">
+                      CPF inválido. Tente novamente.
+                    </p>
+                  )}
                 </div>
+                <p className="text-slate-400 font-black text-xs uppercase text-center tracking-widest mt-1">
+                  Após completar seu cadastro, esta tela não será mais exibida.
+                </p>
               </>
-            ) : (
-              <p className="text-xs text-slate-400">
-                QR Code indisponível. Use o copia e cola abaixo.
-              </p>
             )}
 
-            {/* Linha Horizontal */}
-            <div className="border-b border-white/10"></div>
-
-            {/* COPIA E COLA EM 1 LINHA */}
-            <div className="space-y-2">
-              <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">
-                Pix copia e cola
-              </p>
-
-              <div className="flex gap-1">
-                <input
-                  readOnly
-                  value={resp.pix.qr_code ?? ""}
-                  className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-1 py-2 text-slate-400 text-xs outline-none h-10"
-                />
-                <button
-                  type="button"
-                  className="bg-slate-700 hover:bg-slate-600 text-white font-black px-4 rounded-xl text-xs uppercase tracking-widest h-10"
-                  onClick={() => handleCopy(resp.pix!.qr_code!)}
-                >
-                  Copiar
-                </button>
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/30 text-red-200 rounded-xl p-3 text-sm">
+                {error}
               </div>
-            </div>
+            )}
 
-            {/* Linha Horizontal */}
-            <div className="border-b border-white/10"></div>
+            {cpfFilled && (
+              <>
+                {resp?.pix?.qr_code && (
+                  <div className="space-y-3 bg-slate-800/60 border border-white/10 rounded-xl p-4">
+                    <p className="text-slate-300 font-black text-xs uppercase text-center tracking-widest">
+                      Pagamento via Pix
+                    </p>
+                    
+                    {/* Informar o destinatário (Rodrigo) */}
+                    <p className="text-slate-500 font-black text-[9px] uppercase text-center tracking-widest">
+                      Os pagamentos via PIX do <span class="text-slate-400">Céu Noturno</span> são processados automaticamente via <span class="text-slate-400">Mercado Pago.</span> para o seguinte recebedor:
+                    </p>
+                    <p className="text-slate-400 font-black text-[9px] uppercase text-center tracking-widest mt-1">
+                      Rodrigo Lopes Chaves de Aguiar
+                    </p>
 
-            <div className="flex gap-2 pt-1">
-              <button
-                type="button"
-                className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-black py-3 rounded-xl text-xs uppercase tracking-widest border border-white/10"
-                onClick={onClose}
-              >
-                Fechar
-              </button>
-            </div>
+                    {/* QR CODE */}
+                    {resp?.pix?.qr_code_base64 ? (
+                      <>
+                        <div className="w-full flex items-center justify-center">
+                          <div className="bg-white rounded-2xl p-3 shadow-xl">
+                            <img
+                              src={`data:image/png;base64,${resp.pix.qr_code_base64}`}
+                              alt="QR Code Pix"
+                              className="w-56 h-56"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-center">
+                          <span className="text-sm font-black uppercase tracking-widest text-slate-400">
+                            Expira em
+                          </span>
 
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
-              Após o pagamento, o saldo atualiza automaticamente.
-            </p>
-          </div>
+                          <span
+                            className={`ml-1 text-sm font-black ${isExpired ? "text-red-400" : "text-yellow-300"}`}
+                          >
+                            {isExpired ? "00:00" : `${mm}:${ss}`}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-xs text-slate-400">
+                        QR Code indisponível. Use o copia e cola abaixo.
+                      </p>
+                    )}
+
+                    {/* Linha Horizontal */}
+                    <div className="border-b border-white/10"></div>
+
+                    {/* COPIA E COLA EM 1 LINHA */}
+                    <div className="space-y-2">
+                      <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">
+                        Pix copia e cola
+                      </p>
+
+                      <div className="flex gap-1">
+                        <input
+                          readOnly
+                          value={resp.pix.qr_code ?? ""}
+                          className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-1 py-2 text-slate-400 text-xs outline-none h-10"
+                        />
+                        <button
+                          type="button"
+                          className="bg-slate-700 hover:bg-slate-600 text-white font-black px-4 rounded-xl text-xs uppercase tracking-widest h-10"
+                          onClick={() => handleCopy(resp.pix!.qr_code!)}
+                        >
+                          Copiar
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Linha Horizontal */}
+                    <div className="border-b border-white/10"></div>
+
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        type="button"
+                        className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-black py-3 rounded-xl text-xs uppercase tracking-widest border border-white/10"
+                        onClick={onClose}
+                      >
+                        Fechar
+                      </button>
+                    </div>
+
+                    <p className="text-[10px] text-slate-500 text-center font-bold uppercase tracking-widest">
+                      Após o pagamento, o saldo atualiza automaticamente.
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+          </>
         )}
+        
       </div>
     </Modal>
   );
