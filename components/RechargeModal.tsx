@@ -190,7 +190,7 @@ const RechargeModal: React.FC<Props> = ({
         (payload) => {
           const newStatus = payload.new.status;
           const amountCents = payload.new.amount_cents;
-          toast.dismiss(toastId);
+          
 
           if (newStatus === "approved") {
             toast.success(`Pagamento confirmado! ✨${amountCents} energias foram adicionadas.`);
@@ -200,6 +200,7 @@ const RechargeModal: React.FC<Props> = ({
 
             // opcional: atualizar saldo do usuário
             // refetchUser();
+            toast.dismiss(toastId);
             closeTopOverlay();
 
             supabase.removeChannel(channel);
@@ -208,6 +209,7 @@ const RechargeModal: React.FC<Props> = ({
           if (newStatus === "failed" || newStatus === "cancelled") {
             toast.error("O pagamento não foi concluído.");
             supabase.removeChannel(channel);
+            toast.dismiss(toastId);
           }
         }
       )
