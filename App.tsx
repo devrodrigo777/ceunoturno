@@ -19,7 +19,7 @@ import { useShareOrCopy } from "./hooks/useShareOrCopy";
 import ModalSobre from "./components/ModalSobre";
 import ModalTermos from "./components/ModalTermos";
 import RechargeModal from "./components/RechargeModal";
-import { enforceVersionReset } from "./utils/versionGuard";
+import { __version__, enforceVersionReset } from "./utils/versionGuard";
 import PosterModal from "./components/PosterModal";
 import PosterConfirmModal from "./components/PosterConfirmModal";
 
@@ -627,7 +627,7 @@ useEffect(() => {
             //   openAstroModal(astro);
             // }}
             
-            titleZoomText={`V 1.0.1a • Zoom ${Math.round(zoom * 100)}%`}
+            titleZoomText={`V ${__version__()} • Zoom ${Math.round(zoom * 100)}%`}
             session={session ?? null}
             userBalance={user.balance}
             onLogin={handleLogin}

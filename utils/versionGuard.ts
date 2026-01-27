@@ -1,7 +1,11 @@
 const versionGuard = {
-  __CURRENT_VERSION__: "1.2.0a",
+  __CURRENT_VERSION__: "1.2.1a",
   __VERSION_KEY__: "__version__",
 };
+
+export function __version__() {
+  return versionGuard.__CURRENT_VERSION__;
+}
 
 export function enforceVersionReset() {
   // Verifica se a versão está atualizada

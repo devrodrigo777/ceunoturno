@@ -169,7 +169,7 @@ document.body.appendChild(wrap);
   // follow: "zenith",
   stars: {
     show: true,
-    limit: 6,                 // você pode testar 5.5~7.0
+    limit: 5.5,                 // você pode testar 5.5~7.0
     colors: false,            // look mais uniforme
     style: { fill: "#ffffff", opacity: 1 },
 
@@ -190,7 +190,7 @@ document.body.appendChild(wrap);
     namelimit: 4,  // Show only names for DSOs brighter than namelimit
     namestyle: { fill: "#cccccc", font: "11px Helvetica, Arial, serif", align: "left", baseline: "top" },
     size: null,    // Optional seperate scale size for DSOs, null = stars.size
-    exponent: 1.4, // Scale exponent for DSO size, larger = more non-linear
+    exponent: 1.6, // Scale exponent for DSO size, larger = more non-linear
     data: 'dsos.bright.json',  // Data source for DSOs
     //data: 'dsos.6.json'  // Alternative broader data source for DSOs
     //data: 'dsos.14.json' // Alternative deeper data source for DSOs
@@ -232,11 +232,11 @@ document.body.appendChild(wrap);
   },
   mw: {
     show: false,
-    style: { fill: "#ffffff", opacity: 0.08 }
+    style: { fill: "#ffffff", opacity: 0.1 }
   },
   lines: {
     graticule: { show: true, stroke: "#cccccc", width: 0.7, opacity: 0.30 }, // era 0.6 [page:4]
-    equatorial: { show: false, stroke: "#aaaaaa", width: 2.0, opacity: 0.6 },  // era 1.3 [page:4]
+    equatorial: { show: false, stroke: "#aaaaaa", width: 2.5, opacity: 0.8 },  // era 1.3 [page:4]
     ecliptic: { show: false }  ,
     galactic: { show: false },
     supergalactic: { show: true }

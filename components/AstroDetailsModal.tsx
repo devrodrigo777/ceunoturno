@@ -80,7 +80,7 @@ useEffect(() => {
           </div>
 
           {selectedAstro.image_path && (
-            <div className="relative mt-6 w-full h-80 rounded-2xl border border-white/10 overflow-hidden bg-slate-900">
+            <div className="relative justify-center flex mt-6 w-full min-h-[40vh] max-h-[70vh] rounded-2xl border border-white/10 overflow-hidden bg-slate-900">
               {/* skeleton */}
               {!imgLoaded && (
                 <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-slate-800 to-slate-900" />
@@ -91,7 +91,19 @@ useEffect(() => {
                 alt="Imagem do astro"
                 loading="lazy"
                 className={[
-                  "absolute inset-0 w-full h-full object-cover transition-opacity duration-300",
+                  "absolute inset-0 max-h-[70vh] min-h-[40vh] w-full max-w-full object-cover blur-xl scale-110 transition-opacity duration-300",
+                  imgLoaded ? "opacity-100" : "opacity-0",
+                ].join(" ")}
+                onLoad={() => setImgLoaded(true)}
+                onError={() => setImgLoaded(true)} // para não ficar skeleton infinito
+              />
+
+              <img
+                src={selectedAstro.image_path}
+                alt="Imagem do astro"
+                loading="lazy"
+                className={[
+                  "relative z-10 inset-0 max-h-[70vh] min-h-[40vh] w-auto max-w-full object-contain transition-opacity duration-300",
                   imgLoaded ? "opacity-100" : "opacity-0",
                 ].join(" ")}
                 onLoad={() => setImgLoaded(true)}
@@ -103,18 +115,18 @@ useEffect(() => {
 
           <div className="relative mt-6 px-6">
             {/* Aspas decorativas */}
-            <span className="absolute -top-6 left-2 text-[120px] leading-none text-white/5 font-serif select-none">
+            <span className="absolute -top-8  left-0 text-[180px] leading-none text-white/5 font-serif select-none">
               “
             </span>
 
             <p
-              className="relative  md:text-2xl xs:text-3xl text-xl  text-white font-serif italic leading-relaxed text-center"
+              className="relative md:text-2xl xs:text-3xl text-xl mt-4 text-white font-serif italic leading-relaxed text-center"
               style={{ wordBreak: "break-word" }}
               >
               {selectedAstro.message}
             </p>
 
-            <span className="absolute top-10 right-2 text-[120px] leading-none text-white/5 font-serif select-none">
+             <span className="absolute -top-8 right-0 text-[180px] leading-none text-white/5 font-serif select-none">
               ”
             </span>
           </div>

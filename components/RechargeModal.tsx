@@ -54,6 +54,11 @@ const RechargeModal: React.FC<Props> = ({
   const PIX_TTL_MS = 4 * 60 * 1000;
   const [pixExpiresAt, setPixExpiresAt] = useState<number | null>(null);
   const [remainingSec, setRemainingSec] = useState(0);
+  const loadingToastRef = React.useRef<any>(null);
+
+  const startLoadingToast = (text: string) => {
+    loadingToastRef.current = toast.loading(text);
+  };
 
   const amountBRL = useMemo(
     () => (amountCents / 100).toFixed(2),
@@ -175,7 +180,7 @@ const RechargeModal: React.FC<Props> = ({
   useEffect(() => {
     if (!resp?.topup_id) return;
 
-    const toastId = toast.loading("Aguardando pagamento...");
+    startLoadingToast("Aguardando pagamento...");
 
     const channel = supabase
       .channel(`topup-${resp.topup_id}`)
@@ -200,7 +205,10 @@ const RechargeModal: React.FC<Props> = ({
 
             // opcional: atualizar saldo do usuário
             // refetchUser();
-            toast.dismiss(toastId);
+            if(loadingToastRef.current) {
+              toast.dismiss(loadingToastRef.current);
+              loadingToastRef.current = null;
+            }
             closeTopOverlay();
 
             supabase.removeChannel(channel);
@@ -209,7 +217,10 @@ const RechargeModal: React.FC<Props> = ({
           if (newStatus === "failed" || newStatus === "cancelled") {
             toast.error("O pagamento não foi concluído.");
             supabase.removeChannel(channel);
-            toast.dismiss(toastId);
+            if(loadingToastRef.current) {
+              toast.dismiss(loadingToastRef.current);
+              loadingToastRef.current = null;
+            }
           }
         }
       )
@@ -268,7 +279,13 @@ const RechargeModal: React.FC<Props> = ({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={() => {
+        onClose ();
+        if(loadingToastRef.current) {
+          toast.dismiss(loadingToastRef.current);
+          loadingToastRef.current = null;
+        }
+      }}
       title={cpfFilled ? "Recarregar energias" : "Complete seu cadastro"}
     >
       <div className="space-y-4">
@@ -575,10 +592,10 @@ const RechargeModal: React.FC<Props> = ({
                     
                     {/* Informar o destinatário (Rodrigo) */}
                     <p className="text-slate-500 font-black text-[9px] uppercase text-center tracking-widest">
-                      Os pagamentos via PIX do <span class="text-slate-400">Céu Noturno</span> são seguros e processados automaticamente via <span class="text-slate-400">Mercado Pago.</span> para o seguinte recebedor:
+                      Os pagamentos via PIX do <span class="text-slate-400">Céu Noturno</span> são <u>seguros</u> e <u>processados automaticamente</u> via <span class="text-slate-400">Mercado Pago</span> para o seguinte recebedor:
                     </p>
                     <p className="text-slate-400 font-black text-[9px] uppercase text-center tracking-widest mt-1">
-                      Graça Maria Lopes
+                      Rodrigo Lopes Chaves de Aguiar
                     </p>
 
                     {/* QR CODE */}
