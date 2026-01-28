@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useReducer } from "react";
 import Modal from "./Modal";
 import { Astro } from "../types";
 import { formatAstroDate } from "@/utils/formatDate";
@@ -32,8 +32,17 @@ const AstroDetailsModal: React.FC<Props> = ({
 const [imgLoaded, setImgLoaded] = useState(false);
 const [isOwner, setIsOwner] = useState(false);
 const [fontSize, setFontSize] = useState(18);
+const [messageText, setMessageText] = useState("");
+const [, forceUpdate] = useReducer(x => x + 1, 0);
 
 useEffect(() => {
+
+  setMessageText(selectedAstro?.message || "");
+
+  setTimeout(() => {
+    forceUpdate();
+  }, 1000);
+
   if (selectedAstro?.user_id === session?.user.id) {
     setIsOwner(true);
   } else {
@@ -60,7 +69,7 @@ useEffect(() => {
 
   return (
 
-    <Modal isOpen={isAstroModalOpen} onClose={onClose} title="Explorando">
+    <Modal isOpen={isAstroModalOpen} onClose={() => {onClose(); setImgLoaded(false); selectedAstro = null; setIsOwner(false); setMessageText(""); forceUpdate();}} title="Explorando">
       {!!selectedAstro && (
         <div className="animate-entrance backdrop-blur-sm text-center py-6">
           <div className="w-24 h-24 mx-auto mb-4 flex items-center justify-center relative">
@@ -123,7 +132,7 @@ useEffect(() => {
               className="relative md:text-2xl xs:text-3xl text-xl mt-4 text-white font-serif italic leading-relaxed text-center"
               style={{ wordBreak: "break-word" }}
               >
-              {selectedAstro.message}
+              {messageText}
             </p>
 
              <span className="absolute -top-8 right-0 text-[180px] leading-none text-white/5 font-serif select-none">
