@@ -15,6 +15,25 @@ body {
             100% { transform: scale(1); }
         }
 
+@keyframes shimmer-slow {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pulse-fast {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.animate-shimmer-slow {
+  background-size: 200% 100%;
+  animation: shimmer-slow 3s infinite linear;
+}
+
+.animate-pulse-fast {
+  animation: pulse-fast 0.6s infinite;
+}
+
 
 
         @keyframes twinkle {

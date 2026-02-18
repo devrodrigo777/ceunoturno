@@ -23,6 +23,7 @@ import { __version__, enforceVersionReset } from "./utils/versionGuard";
 import PosterModal from "./components/PosterModal";
 import PosterConfirmModal from "./components/PosterConfirmModal";
 import ReferralModal from "./components/ReferralModal";
+import { useUserProfile } from "./hooks/useUserProfile";
 
 const App: React.FC = () => {
   enforceVersionReset();
@@ -141,6 +142,7 @@ const App: React.FC = () => {
   const { session } = useSession({ setIsLoading, setShowIntro });
   sessionUserIdRef.current = session?.user?.id ?? null;
 
+  const { profile, loading } = useUserProfile();
   
   /**
    * Realtime hooks
@@ -166,6 +168,8 @@ const App: React.FC = () => {
       if (refId) {
         applyReferral(refId)
       }
+
+      console.log(profile);
     }
   }, [session])
 
@@ -752,8 +756,10 @@ useEffect(() => {
       {isOpen("dashboard") && (
         <UserDashboard
           user={session?.user}
+          profile={profile}
           credits={user.balance}
           myAstros={myAstros}
+          session={session}
           isOpen={isOpen("dashboard")}
           onClose={() => closeTopOverlay()}
           onAbout={() => openOverlay("sobre")}

@@ -19,7 +19,7 @@ const ReferralModal: React.FC<ReferralModalProps> = ({ isOpen, onClose, user }) 
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Indicar Alguém">
+    <Modal isOpen={isOpen} onClose={onClose} title="Ganhe Dinheiro">
       <div className="space-y-4 text-center">
 
         {/* Espaço para exibição do saldo das indicações com um enfeito */}
@@ -29,15 +29,16 @@ const ReferralModal: React.FC<ReferralModalProps> = ({ isOpen, onClose, user }) 
             <p className="text-slate-400 text-sm text-left text-green-400">R$ 0,00</p>
           </div>
           <button className="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg transition-colors" onClick={() => {
-            if (referral?.amount < 30) {
-              toast.error("Você precisa ter pelo menos R$ 30,00 em comissões para solicitar um saque!");
-            } else {
+            // if (referral?.amount < 30) {
+              toast.error("Você precisa ter pelo menos R$ 30,00 em saldo para solicitar um saque!");
+            // } else {
               // implementar a lógica de saque aqui
-            }
+            // }
           }}>
             SACAR
           </button>
         </div>
+        <div className="text-slate-400 text-xs text-center">Ganhe dinheiro com o <strong>Asteroider</strong> ou com indicações!</div>
         <div className="text-slate-400 text-xs italic text-center">Valor mínimo para solicitação de saque: <strong>R$ 30,00</strong></div>
         <div className="text-slate-400 text-xs italic text-center">O valor solicitado será enviado para o seu CPF ou o E-mail cadastrado desta conta.</div>
 

@@ -1,6 +1,7 @@
 import React from "react";
 import AstroItem from "./AstroItem";
 import { Astro } from "../types";
+import CometaTimer from "./CometaTimer";
 
 type Vec2 = { x: number; y: number };
 

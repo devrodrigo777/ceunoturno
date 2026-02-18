@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import RechargeModal from './RechargeModal';
+import { useSession } from '@/hooks/useSession';
+import CometaTimer from './CometaTimer';
+
 
 interface DashboardProps {
   isOpen: boolean;
   onClose: () => void;
   user: any;
+  profile: any;
   credits: number;
   myAstros: any[];
   onLogout: () => void;
@@ -16,8 +20,9 @@ interface DashboardProps {
 }
 
 const UserDashboard: React.FC<DashboardProps> = ({ 
-  isOpen, onClose, user, credits, myAstros, onAbout, onLogout, onFocusAstro, onTerms, onRecharge, onReferral
+  isOpen, onClose, user, profile, credits, myAstros, onAbout, onLogout, onFocusAstro, onTerms, onRecharge, onReferral
 }) => {
+
   // console.log(user);
   return (
     <>
@@ -33,7 +38,7 @@ const UserDashboard: React.FC<DashboardProps> = ({
           {/* Header do Perfil */}
           <div className="flex items-center gap-4 mb-8">
             <img
-              src={user.user_metadata.avatar_url}
+              src={profile?.avatar_url || user.user_metadata.avatar_url}
               onError={(e) => {
                 const img = e.currentTarget;
                 if (img.src !== "./unknown.png") img.src = "./unknown.png";
@@ -42,7 +47,7 @@ const UserDashboard: React.FC<DashboardProps> = ({
               alt="Avatar"
               />
             <div>
-              <h3 className="text-white font-black text-sm uppercase tracking-tighter">{user?.full_name || user?.user_metadata?.full_name || "Desconhecido"}</h3>
+              <h3 className="text-white font-black text-sm uppercase tracking-tighter">{profile?.full_name || user?.user_metadata?.full_name || "Desconhecido"}</h3>
               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Viajante Estelar</p>
             </div>
             <button onClick={onClose} className="ml-auto text-slate-500 hover:text-white transition-colors">
@@ -91,6 +96,16 @@ const UserDashboard: React.FC<DashboardProps> = ({
             </div>
           </div>
 
+          {/* Saldo JOGO (Cometa) */}
+        <div className="font-black text-yellow-400">
+          Poeiras Estelares: {profile?.total_referral_comission?.toFixed(0) ?? 0}
+        </div>
+
+        {/* Cometa Timer */}
+        <CometaTimer 
+          userBalance={profile?.total_referral_comission ?? 0} 
+        />
+
           {/* Footer - Sobre e Logout */}
           <div className="mt-auto pt-6 border-t border-white/5 space-y-4">
             <button onClick={onAbout} className="w-full text-left text-slate-400 hover:text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-3">
@@ -100,7 +115,7 @@ const UserDashboard: React.FC<DashboardProps> = ({
               <i className="fa-solid fa-circle-info"></i> Termos  de Uso
             </button>
             <button onClick={onReferral} className="w-full text-left text-slate-400 hover:text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-3">
-              <i className="fa-solid fa-users"></i> Indicar Alguém
+              <i className="fa-solid fa-users"></i> Ganhe Dinheiro
             </button>
             <button onClick={onLogout} className="w-full text-left text-red-400/70 hover:text-red-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-3 transition-colors">
               <i className="fa-solid fa-right-from-bracket"></i> Encerrar Sessão
