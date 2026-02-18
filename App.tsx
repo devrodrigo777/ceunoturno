@@ -303,6 +303,7 @@ useEffect(() => {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     closeTopOverlay();
+    window.location.reload();
   };
   //#endregion
 
