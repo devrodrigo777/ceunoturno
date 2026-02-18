@@ -70,30 +70,6 @@ const ReferralModal: React.FC<ReferralModalProps> = ({ isOpen, onClose, user }) 
           Compartilhe seu link de indicação. Para cada pessoa que se cadastrar e fizer a primeira compra de poeiras estelares, você ganha <strong className="text-yellow-400">30% do valor da compra</strong>!
         </p>
         
-        <p className="text-slate-400 text-sm text-center">Tabela de Comissões</p>
-        <table className="w-full text-left">
-            <thead>
-                <tr>
-                    <th className="text-slate-400 text-sm">COMPRA</th>
-                    <th className="text-slate-400 text-sm text-right">COMISSÃO</th>
-                </tr>
-            </thead>
-          <tbody>
-            <tr>
-              <td className="text-slate-400 text-sm">R$ 10,00</td>
-              <td className="text-slate-400 text-sm text-right">R$ 3,30</td>
-            </tr>
-            <tr>
-              <td className="text-slate-400 text-sm">R$ 20,00</td>
-              <td className="text-slate-400 text-sm text-right">R$ 6,60</td>
-            </tr>
-            <tr>
-              <td className="text-slate-400 text-sm">R$ 50,00</td>
-              <td className="text-slate-400 text-sm text-right">R$ 15,00</td>
-            </tr>
-          </tbody>
-        </table>
-        
         {/* Horizontal border line */}
         <div className="w-full h-px bg-white/10"></div>
 
