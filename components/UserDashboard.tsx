@@ -12,10 +12,11 @@ interface DashboardProps {
   onAbout: () => void;
   onTerms: () => void;
   onRecharge: () => void;
+  onReferral: () => void;
 }
 
 const UserDashboard: React.FC<DashboardProps> = ({ 
-  isOpen, onClose, user, credits, myAstros, onAbout, onLogout, onFocusAstro, onTerms, onRecharge
+  isOpen, onClose, user, credits, myAstros, onAbout, onLogout, onFocusAstro, onTerms, onRecharge, onReferral
 }) => {
   // console.log(user);
   return (
@@ -97,6 +98,9 @@ const UserDashboard: React.FC<DashboardProps> = ({
             </button>
             <button onClick={onTerms} className="w-full text-left text-slate-400 hover:text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-3">
               <i className="fa-solid fa-circle-info"></i> Termos  de Uso
+            </button>
+            <button onClick={onReferral} className="w-full text-left text-slate-400 hover:text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-3">
+              <i className="fa-solid fa-users"></i> Indicar Alguém
             </button>
             <button onClick={onLogout} className="w-full text-left text-red-400/70 hover:text-red-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-3 transition-colors">
               <i className="fa-solid fa-right-from-bracket"></i> Encerrar Sessão

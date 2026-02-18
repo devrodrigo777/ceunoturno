@@ -22,6 +22,7 @@ import RechargeModal from "./components/RechargeModal";
 import { __version__, enforceVersionReset } from "./utils/versionGuard";
 import PosterModal from "./components/PosterModal";
 import PosterConfirmModal from "./components/PosterConfirmModal";
+import ReferralModal from "./components/ReferralModal";
 
 const App: React.FC = () => {
   enforceVersionReset();
@@ -90,7 +91,7 @@ const App: React.FC = () => {
     : null;
 
   type OverlayKey = 'dashboard' | 'sobre' | 'termos' | 'purchase' | 'preview' | 'astro' | 'recharge'
-    | 'poster' | 'posterConfirm';
+    | 'poster' | 'posterConfirm' | 'referral';
 
   const [overlayStack, setOverlayStack] = useState<OverlayKey[]>([]);
   const isMapBlocked = overlayStack.length > 0;
@@ -158,6 +159,27 @@ const App: React.FC = () => {
     if (isMapBlocked) stopDragging();
   }, [isMapBlocked, stopDragging]);
 
+  // No useEffect após detectar login + localStorage ref
+  useEffect(() => {
+    if (session?.user) {
+      const refId = localStorage.getItem('signup_ref')
+      if (refId) {
+        applyReferral(refId)
+      }
+    }
+  }, [session])
+
+  const applyReferral = async (referrerId: string) => {    
+    const { data, error } = await supabase.functions.invoke('apply_signup_referral', {
+      body: { referrer_id: referrerId }
+    })
+
+    if (data?.success) {
+      localStorage.removeItem('signup_ref')
+    } else if (error) {
+      console.error('Referral error:', error)
+    }
+  }
 
   const handlePulse = async () => {
     if (!session?.user) return toast.error("Precisas de estar logado!");
@@ -264,6 +286,12 @@ useEffect(() => {
   // Helper para limpar imagens quando fecha o modal
 
   const handleLogin = async () => {
+
+    const refParam = new URLSearchParams(window.location.search).get('ref')
+    if (refParam) {
+      localStorage.setItem('signup_ref', refParam)
+    }
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: window.location.origin },
@@ -740,6 +768,7 @@ useEffect(() => {
           onRecharge={() => {
             openOverlay("recharge");
           }}
+          onReferral={() => openOverlay("referral")}
           onLogout={handleLogout}
         />
       )}
@@ -757,6 +786,12 @@ useEffect(() => {
         onPaid={() => closeTopOverlay()}
         closeAllOverlays={closeAllOverlays}
         closeTopOverlay={closeTopOverlay}
+        user={session?.user}
+      />
+
+      <ReferralModal
+        isOpen={isOpen("referral")}
+        onClose={() => closeTopOverlay()}
         user={session?.user}
       />
     </>
