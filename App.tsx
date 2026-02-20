@@ -28,6 +28,7 @@ import CometaTimer from "./components/CometaTimer";
 import { CometaGameModal } from "./components/CometaGameModal";
 import { useCometaRealtime } from "./hooks/useCometaRealtime";
 import { error } from "console";
+import CometaPromo from "./components/CometaPromo";
 
 const App: React.FC = () => {
   enforceVersionReset();
@@ -606,7 +607,10 @@ useEffect(() => {
     return lines;
   }, [astros]);
 
-  const { game, activeBet, cashout, hasCashout, cashoutAmount } = useCometaRealtime(profile);
+  // const { game, activeBet, bets, cashout, hasCashout, cashoutAmount } = useCometaRealtime(profile);
+  const { game, activeBet, bets, cashout, hasCashout, cashoutAmount } =
+  useCometaRealtime(session ? profile : null)
+
   const [currentMultiplier, setCurrentMultiplier] = useState(1.0)
   const [betAmount, setBetAmount] = useState(0);
 
@@ -691,12 +695,19 @@ useEffect(() => {
               Poeiras Estelares: {profile?.total_referral_comission?.toFixed(0) ?? 0}
             </div> */}
             {/* Cometa Timer */}
-            <CometaTimer 
-              game={game}
-              userBalance={userBalance} 
-              onClick={() => openOverlay("cometa")} 
-              setMultiplier={setCurrentMultiplier}
-            />
+            {profile?.id && (
+              <CometaTimer 
+                game={game}
+                userBalance={userBalance} 
+                onClick={() => openOverlay("cometa")} 
+                setMultiplier={setCurrentMultiplier}
+                profile={profile}
+              />
+            )}
+
+            {!profile?.id && (
+              <CometaPromo onClick={handleLogin} />
+            )}
           {/* </div> */}
 
           <CometaGameModal
@@ -709,6 +720,7 @@ useEffect(() => {
             placeBet={placeBet}
             betAmount={betAmount}
             setBetAmount={setBetAmount}
+            bets={bets}
 
             cashout={cashout}
             hasActiveBet={activeBet}

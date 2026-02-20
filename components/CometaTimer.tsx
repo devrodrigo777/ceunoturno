@@ -7,9 +7,10 @@ interface CometaTimerProps {
   game: CometaGame | null
   onClick?: () => void
   setMultiplier?: (multiplier: number) => void
+  profile: any | null
 }
 
-export default function CometaTimer({ userBalance, game, onClick, setMultiplier }: CometaTimerProps) {
+export default function CometaTimer({ userBalance, game, onClick, setMultiplier, profile }: CometaTimerProps) {
   // const { game, isLoading } = useCometaRealtime()
   const {isLoading} = {isLoading: false} // placeholder para evitar erro de desestruturação
   const [showModal, setShowModal] = useState(false)
@@ -100,11 +101,17 @@ export default function CometaTimer({ userBalance, game, onClick, setMultiplier 
     return <div className="w-[320px] h-32 animate-pulse bg-slate-900/50 rounded-2xl border border-white/10 shadow-xl" />
   }
 
-  if (!gameRef.current) {
+  if (!game?.id) {
     return (
-      <div className="w-[320px] h-32 bg-slate-900/50 rounded-2xl border border-dashed border-white/20 flex items-center justify-center text-slate-500 text-sm shadow-xl">
-        Conectando cometa...
-      </div>
+      <>
+        <div 
+      className="fixed z-10 left-2 bottom-6 w-[40%] max-w-[320px] h-32 bg-gradient-to-r from-slate-900/80 via-purple-900/60 to-slate-900/80 
+                  border-2 border-gradient-to-r from-yellow-400/50 to-orange-500/50 
+                  rounded-2xl backdrop-blur-xl cursor-pointer hover:scale-[1.02] transition-all duration-200
+                  shadow-2xl hover:shadow-yellow-400/30 active:scale-[0.98] overflow-hidden"
+      onClick={onClick}
+    ></div>
+      </>
     )
   }
 

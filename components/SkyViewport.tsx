@@ -406,7 +406,7 @@ const SkyViewport: React.FC<Props> = ({
           />
         </div>
 
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 text-center z-30 w-full px-6 pointer-events-none">
+        <div className="absolute bottom-40 left-1/2 -translate-x-1/2 text-center z-30 w-full px-6 pointer-events-none">
           <p className="text-slate-400 text-[11px] font-black uppercase tracking-[0.3em] mb-4 animate-pulse">
             Toque em um astro e descubra sua mensagem
           </p>

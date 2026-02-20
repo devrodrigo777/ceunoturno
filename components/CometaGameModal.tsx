@@ -15,6 +15,7 @@ interface Props {
   hasActiveBet: boolean
   hasCashout: boolean,
   cashoutAmount: number
+  bets: any[]
 }
 
 export function CometaGameModal({
@@ -29,7 +30,8 @@ export function CometaGameModal({
   hasActiveBet,
   cashout,
   hasCashout,
-  cashoutAmount
+  cashoutAmount,
+  bets
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [particles, setParticles] = useState<{x:number,y:number,size:number,alpha:number}[]>([])
@@ -61,6 +63,7 @@ export function CometaGameModal({
   useEffect(() => {
     const img = new Image()
     img.src = './bg.png'
+    img.className = 'bg-img'
     img.onload = () => { bgRef.current = img }
   }, [])
 
@@ -265,10 +268,10 @@ export function CometaGameModal({
           <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
           
           {/* Badge de Desejos */}
-          {/* <div className="absolute bottom-4 right-4 bg-black/40 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full flex items-center gap-2 pointer-events-none">
+          <div className="absolute bottom-4 right-4 bg-black/40 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full flex items-center gap-2 pointer-events-none">
             <div className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.8)]"></div>
-            <span className="text-[10px] font-black text-white uppercase tracking-widest">120 Desejos</span>
-          </div> */}
+            <span className="text-[10px] font-black text-white uppercase tracking-widest">{bets.length} {bets.length === 1 ? 'Desejo' : 'Desejos'}</span>
+          </div>
         </div>
 
         {/* Controls */}
