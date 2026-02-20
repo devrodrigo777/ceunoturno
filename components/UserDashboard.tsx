@@ -96,15 +96,7 @@ const UserDashboard: React.FC<DashboardProps> = ({
             </div>
           </div>
 
-          {/* Saldo JOGO (Cometa) */}
-        <div className="font-black text-yellow-400">
-          Poeiras Estelares: {profile?.total_referral_comission?.toFixed(0) ?? 0}
-        </div>
-
-        {/* Cometa Timer */}
-        <CometaTimer 
-          userBalance={profile?.total_referral_comission ?? 0} 
-        />
+          
 
           {/* Footer - Sobre e Logout */}
           <div className="mt-auto pt-6 border-t border-white/5 space-y-4">

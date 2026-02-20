@@ -24,6 +24,10 @@ import PosterModal from "./components/PosterModal";
 import PosterConfirmModal from "./components/PosterConfirmModal";
 import ReferralModal from "./components/ReferralModal";
 import { useUserProfile } from "./hooks/useUserProfile";
+import CometaTimer from "./components/CometaTimer";
+import { CometaGameModal } from "./components/CometaGameModal";
+import { useCometaRealtime } from "./hooks/useCometaRealtime";
+import { error } from "console";
 
 const App: React.FC = () => {
   enforceVersionReset();
@@ -92,7 +96,7 @@ const App: React.FC = () => {
     : null;
 
   type OverlayKey = 'dashboard' | 'sobre' | 'termos' | 'purchase' | 'preview' | 'astro' | 'recharge'
-    | 'poster' | 'posterConfirm' | 'referral';
+    | 'poster' | 'posterConfirm' | 'referral' | 'cometa';
 
   const [overlayStack, setOverlayStack] = useState<OverlayKey[]>([]);
   const isMapBlocked = overlayStack.length > 0;
@@ -601,6 +605,50 @@ useEffect(() => {
     }
     return lines;
   }, [astros]);
+
+  const { game, activeBet, cashout, hasCashout, cashoutAmount } = useCometaRealtime(profile);
+  const [currentMultiplier, setCurrentMultiplier] = useState(1.0)
+  const [betAmount, setBetAmount] = useState(0);
+
+  const placeBet = async (amount: number) => {
+    try {
+      const res = await fetch(
+        `https://fycadvyrbqaqdvspmrtg.supabase.co/functions/v1/place-bet`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({ amount }),
+        }
+      )
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error)
+      } else {
+        if(data.success) {
+          toast.success("Aposta realizada com sucesso!");
+          setBetAmount(amount);
+        }
+      }
+
+      
+
+    } catch (error: any) {
+      console.error(error)
+      toast.error(error.message)
+    }
+  }
+
+  const userBalance = useMemo(() => {
+  const value = Number(user?.total_referral_commission)
+  return isNaN(value) ? 0 : value
+}, [user?.total_referral_commission])
+
+
   
   return (
     <>
@@ -634,6 +682,42 @@ useEffect(() => {
                 color: "#fff",
               },
             }}
+          />
+
+          {/* Criaremos uma DIV para ficar no canto inferior esquerdo, com tamanho máximo de um botão grande */}
+          {/* <div className="absolute bottom-5 left-5 max-w-[200px]"> */}
+            {/* Saldo JOGO (Cometa) */}
+            {/* <div className="font-black text-yellow-400">
+              Poeiras Estelares: {profile?.total_referral_comission?.toFixed(0) ?? 0}
+            </div> */}
+            {/* Cometa Timer */}
+            <CometaTimer 
+              game={game}
+              userBalance={userBalance} 
+              onClick={() => openOverlay("cometa")} 
+              setMultiplier={setCurrentMultiplier}
+            />
+          {/* </div> */}
+
+          <CometaGameModal
+            isOpen={isOpen("cometa")}
+            onClose={() => closeTopOverlay()}
+            currentMultiplier={currentMultiplier}
+            userBalance={userBalance}
+            game={game}
+
+            placeBet={placeBet}
+            betAmount={betAmount}
+            setBetAmount={setBetAmount}
+
+            cashout={cashout}
+            hasActiveBet={activeBet}
+            hasCashout={hasCashout}
+            cashoutAmount={cashoutAmount}
+
+
+
+
           />
 
           <SkyViewport

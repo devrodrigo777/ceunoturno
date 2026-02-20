@@ -42,4 +42,5 @@ export interface User {
   id: string;
   name: string;
   balance: number;
+  total_referral_commission: number;
 }

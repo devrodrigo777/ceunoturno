@@ -13,7 +13,8 @@ type Params = {
 const DEFAULT_USER: User = {
     id: 'u1',
     name: 'Explorador',
-    balance: 0
+    balance: 0,
+    total_referral_commission: 0,
 }
 
 export function useUserCreditsRealtime({ session, setUser}: Params) {
@@ -26,7 +27,7 @@ useEffect(() => {
         // 2. Busca o saldo na tabela 'profiles'
         const { data, error } = await supabase
           .from('profiles')
-          .select('credits')
+          .select('credits, full_name, avatar_url, total_referral_commission')
           .eq('id', session.user.id)
           .single();
 
@@ -35,7 +36,8 @@ useEffect(() => {
         } else if (data) {
           setUser((prev) => ({
             ...prev,
-            balance: data.credits
+            balance: data.credits,
+            total_referral_commission: data.total_referral_commission,
           }))
         }
       }
@@ -48,7 +50,7 @@ useEffect(() => {
       if (session) {
         fetchUserProfile();
       } else {
-        setUser({ id: 'u1', name: 'Explorador', balance: 0 });
+        setUser({ id: 'u1', name: 'Explorador', balance: 0, total_referral_commission: 0 });
       }
     });
 
@@ -70,10 +72,11 @@ useEffect(() => {
         },
         (payload) => {
           // Quando o banco mudar (pela RPC ou admin), o estado muda na hora
-          console.log("Saldo atualizado:", payload.new.credits);
+          console.log("Profile atualizado: ", payload.new);
           setUser((prevUser) => ({
             ...prevUser,
             balance: payload.new.credits,
+            total_referral_commission: payload.new.total_referral_commission,
           }));
         }
       )

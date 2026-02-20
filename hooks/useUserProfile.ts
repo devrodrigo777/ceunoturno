@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 interface UserProfile {
   id: string;
   credits: number;
-  total_referral_comission: number; // saldo jogo Cometa!
+  total_referral_commission: number; // saldo jogo Cometa!
   fullname?: string;
   cpf?: string;
   avatar_url?: string;
@@ -16,47 +16,55 @@ export const useUserProfile = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+    let profileChannel: any
+
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+
       if (!user) {
-        setProfile(null);
-        setLoading(false);
-        return;
+        setProfile(null)
+        setLoading(false)
+        return
       }
 
+      // 🔹 busca inicial
       const { data, error } = await supabase
         .from('profiles')
         .select('id, credits, total_referral_commission, full_name, cpf, avatar_url')
         .eq('id', user.id)
-        .single();
+        .single()
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 = not found
-        //console.error('Erro ao buscar perfil:', error);
-        toast.error('Erro ao carregar perfil. Tente novamente mais tarde.');
+      if (error && error.code !== 'PGRST116') {
+        toast.error('Erro ao carregar perfil.')
       }
 
-      setProfile(data ?? null);
-      setLoading(false);
-    };
+      setProfile(data ?? null)
+      setLoading(false)
 
-    fetchProfile();
+      // 🔹 realtime correto
+      profileChannel = supabase
+        .channel(`user-profile-${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'profiles',
+            filter: `id=eq.${user.id}`,
+          },
+          (payload) => {
+            setProfile(payload.new)
+          }
+        )
+        .subscribe()
+    }
 
-    // Realtime: escuta updates no próprio perfil (credits, saldo jogo)
-    const profileChannel = supabase
-      .channel('user-profile')
-      .on('postgres_changes', 
-        { 
-          event: 'UPDATE', 
-          schema: 'public', 
-          table: 'profiles',
-          filter: `id=eq.${supabase.auth.getUser()?.then(({ data }) => data.user?.id)}`
-        }, 
-        (payload) => setProfile(payload.new)
-      )
-      .subscribe();
+    init()
 
-    return () => supabase.removeChannel(profileChannel);
-  }, []);
+    return () => {
+      if (profileChannel) supabase.removeChannel(profileChannel)
+    }
+  }, [])
 
   return { profile, loading };
 };

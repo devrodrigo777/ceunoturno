@@ -11,19 +11,31 @@ export interface CometaGame {
   seed?: string
   created_at: string
   updated_at: string
+  server_start_time: number
+  betting_start_time: number
+  betting_duration?: number
 }
 
-export function useCometaRealtime() {
+export function useCometaRealtime(profile : any | null) {
   const [game, setGame] = useState<CometaGame | null>(null)
+  const [activeBet, setActiveBet] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [hasCashout, setHasCashout] = useState(false)
+  const [cashoutAmount, setCashoutAmount] = useState(0)
+
+  useEffect(() => {
+    setActiveBet(null)
+    setHasCashout(false)
+    setCashoutAmount(0)
+  }, [game?.id]);
 
   // Fetch inicial
   useEffect(() => {
     const fetchInitialGame = async () => {
       const { data } = await supabase
-        .from('cometa_games')
+        .from('cometa_games_public')
         .select('*')
-        .not('status', 'eq', 'crashed')
+        // .not('status', 'eq', 'crashed')
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
@@ -34,6 +46,24 @@ export function useCometaRealtime() {
     fetchInitialGame()
   }, [])
 
+  // 2️⃣ Buscar aposta do usuário para esse jogo
+  useEffect(() => {
+    if (!profile?.id || !game?.id) return
+
+    const fetchBet = async () => {
+      const { data } = await supabase
+        .from('cometa_bets')
+        .select('bet_amount, cashout_multiplier')
+        .eq('user_id', profile.id)
+        .eq('game_id', game.id)
+        .maybeSingle()
+
+      setActiveBet(data ?? null)
+    }
+
+    fetchBet()
+  }, [profile?.id, game?.id])
+
   // ✅ REALTIME CORRETO - Sintaxe Supabase v2
   useEffect(() => {
     const channel = supabase
@@ -41,21 +71,11 @@ export function useCometaRealtime() {
       .on('postgres_changes', {
         event: '*',  // ← CORRIGIDO: string simples
         schema: 'public',
-        table: 'cometa_games'
+        table: 'cometa_games_public'
       }, (payload) => {
-        console.log('🪨 Realtime:', payload)
-        
-        // Refetch jogo ativo
-        supabase
-          .from('cometa_games')
-          .select('*')
-          .not('status', 'eq', 'crashed')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single()
-          .then(({ data, error }) => {
-            if (!error) setGame(data ?? null)
-          })
+        console.log("Mudança:");
+        console.log(payload.new);
+        setGame(payload.new as CometaGame)
       })
       .subscribe((status) => {
         console.log('✅ Channel:', status)
@@ -65,33 +85,84 @@ export function useCometaRealtime() {
     return () => supabase.removeChannel(channel)
   }, [])
 
+  useEffect(() => {
+    if (!profile?.id) return
+
+    const channel = supabase
+      .channel('cometa_bets')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'cometa_bets',
+          filter: `user_id=eq.${profile.id}`
+        },
+        (payload) => {
+          if (payload.new) {
+            setActiveBet(payload.new)
+          } else {
+            setActiveBet(null)
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [profile?.id])
+
+  const cashout = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!session) {
+        toast.error("Sessão expirada")
+        return
+      }
+
+      const res = await fetch(
+        "https://fycadvyrbqaqdvspmrtg.supabase.co/functions/v1/cashout",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      )
+
+      const data = await res.json()
+
+      if (!res.ok || data?.error) {
+        toast.error(data?.error || "Erro no saque")
+        return
+      }
+
+      toast.success(`🚀 Sacado R$ ${(data.amount)}`);
+      setHasCashout(true)
+      setCashoutAmount(data.amount)
+      
+    } catch (err: any) {
+      toast.error(err.message)
+    }
+  }, [])
+
   // Apostas - FIX user_id
   const placeBet = useCallback(async (amount: number) => {
-    if (!game?.id) {
-      toast.error('Nenhum jogo ativo!')
+    const { data, error } = await supabase.rpc('place_cometa_bet', {
+      p_user_id: profile.id,
+      p_amount: amount
+    })
+
+    if (error || data?.error) {
+      toast.error(data?.error || error?.message)
       return
     }
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      toast.error('Faça login!')
-      return
-    }
+    toast.success(`✅ Aposta realizada!`)
+  }, [profile?.id])
 
-    const { error } = await supabase
-      .from('cometa_bets')
-      .insert({ 
-        game_id: game.id, 
-        bet_amount: amount,
-        user_id: user.id  // ← FIX: await removido
-      })
-    
-    if (error) {
-      toast.error(error.message)
-    } else {
-      toast.success(`✅ ${amount} poeiras apostadas!`)
-    }
-  }, [game?.id])
-
-  return { game, isLoading, placeBet }
+  return { game, isLoading, placeBet, activeBet, cashout, hasCashout, cashoutAmount }
 }
