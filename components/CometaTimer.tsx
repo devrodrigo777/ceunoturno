@@ -35,7 +35,7 @@ export default function CometaTimer({ userBalance, game, onClick, setMultiplier,
       gameRef.current = game
       
       if (game.status === 'flying') {
-        console.log(game);
+        //console.log(game);
         serverStartRef.current = game.server_start_time
         isAnimatingRef.current = true
       } else {

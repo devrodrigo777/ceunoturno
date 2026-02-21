@@ -62,7 +62,7 @@ export function CometaGameModal({
   // Carrega imagem de fundo
   useEffect(() => {
     const img = new Image()
-    img.src = './bg.png'
+    img.src = '/bg.png'
     img.className = 'bg-img'
     img.onload = () => { bgRef.current = img }
   }, [])
@@ -174,7 +174,7 @@ export function CometaGameModal({
       if (game.status === 'betting' && game.betting_start_time) {
         const elapsed = Date.now() - game.betting_start_time
         const duration = game.betting_duration || 12000
-        const remaining = Math.max(0, duration - elapsed)
+        const remaining = Math.max(0, duration - elapsed + 1000)
         setDisplayTimeLeft(remaining / 1000)
       } else {
         setDisplayTimeLeft(0)
@@ -255,7 +255,7 @@ export function CometaGameModal({
                 {game.status === 'betting' && (
                     <div className="inline-block bg-white/10 px-2 py-1 rounded-md">
                         <span className="text-xs font-mono text-white font-bold">
-                            Novo Cometa Passará em <span className="text-yellow-400">{Math.floor(displayTimeLeft)}s</span>
+                            Novo cometa irá surgir em <span className="text-yellow-400">{Math.floor(displayTimeLeft)}s</span>
                         </span>
                     </div>
                 )}
@@ -268,10 +268,12 @@ export function CometaGameModal({
           <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
           
           {/* Badge de Desejos */}
-          <div className="absolute bottom-4 right-4 bg-black/40 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full flex items-center gap-2 pointer-events-none">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.8)]"></div>
-            <span className="text-[10px] font-black text-white uppercase tracking-widest">{bets.length} {bets.length === 1 ? 'Desejo' : 'Desejos'}</span>
-          </div>
+          {bets.length > 0 && (
+            <div className="absolute bottom-4 right-4 bg-black/40 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full flex items-center gap-2 pointer-events-none">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.8)]"></div>
+              <span className="text-[10px] font-black text-white uppercase tracking-widest">{bets.length} {bets.length === 1 ? 'Desejo' : 'Desejos'}</span>
+            </div>
+          )}
         </div>
 
         {/* Controls */}

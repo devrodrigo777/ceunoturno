@@ -1,24 +1,98 @@
 import React from 'react';
+import { useEffect, useState } from 'react';
 import Modal from './Modal';
 import { toast } from 'sonner';
+import { supabase } from '../services/supabaseClient';
+import { ref } from 'process';
 
 interface ReferralModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: any;
+  balance: number;
 }
 
-const ReferralModal: React.FC<ReferralModalProps> = ({ isOpen, onClose, user }) => {
+const ReferralModal: React.FC<ReferralModalProps> = ({ isOpen, onClose, user, balance }) => {
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [saques, setSaques] = useState<any[]>([]);
+  const [referrals, setReferrals] = useState<any[]>([]);
+
+  const fetchSaques = async () => {
+      const { data, error } = await supabase
+        .from('withdrawals')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      if (error) {
+        console.error("Erro ao buscar saques:", error);
+      } else {
+        setSaques(data);
+      }
+    };
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchReferrals = async () => {
+      const { data, error } = await supabase
+        .from('referrals')
+        .select('*')
+        .eq('referrer_id', user.id)
+        .order('created_at', { ascending: false });
+      if (error) {
+        console.error("Erro ao buscar indicacoes:", error);
+      } else {
+        setReferrals(data);
+      }
+    };
+    fetchReferrals();
+  }, [user]);
+
+
+  useEffect(() => {
+    if (!user) return;
+    fetchSaques();
+  }, [user]);
+
   if (!isOpen || !user) return null;
 
   const referralLink = `${window.location.origin}?ref=${user.id}`;
+
 
   const handleCopy = () => {
     navigator.clipboard.writeText(referralLink);
     toast.success('Link de indicação copiado!');
   };
 
+  const handleWithdraw = () => {
+    if (balance < 30) {
+      toast.error("Você precisa ter pelo menos R$ 30,00 em saldo para solicitar um saque!");
+    } else {
+      setIsConfirmOpen(true);
+    }
+  };
+
+  const confirmWithdraw = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('efetua-saque');
+      if (error) throw error;
+      
+      //console.log("Saque sucesso: "  + data);
+      
+      await fetchSaques(); // Atualiza a lista de saques após solicitar
+      toast.success("Solicitação de saque enviada com sucesso!");
+      setIsConfirmOpen(false);
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao solicitar saque.");
+    } finally {
+      setLoading(false);
+      setIsConfirmOpen(false);
+    }
+  };
+
   return (
+    <>
     <Modal isOpen={isOpen} onClose={onClose} title="Ganhe Dinheiro">
       <div className="space-y-4 text-center">
 
@@ -26,15 +100,9 @@ const ReferralModal: React.FC<ReferralModalProps> = ({ isOpen, onClose, user }) 
         <div className="bg-slate-800 border border-white/10 rounded-xl p-4 flex gap-3">
           <div className="flex-1 bg-transparent text-slate-300 text-sm outline-none">
             <p className="text-slate-400 text-sm text-left">Seu saldo atual:</p>
-            <p className="text-slate-400 text-sm text-left text-green-400">R$ 0,00</p>
+            <p className="text-slate-400 text-sm text-left text-green-400">R$ {balance.toFixed(2) || "0,00"}</p>
           </div>
-          <button className="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg transition-colors" onClick={() => {
-            // if (referral?.amount < 30) {
-              toast.error("Você precisa ter pelo menos R$ 30,00 em saldo para solicitar um saque!");
-            // } else {
-              // implementar a lógica de saque aqui
-            // }
-          }}>
+          <button className="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg transition-colors" onClick={handleWithdraw}>
             SACAR
           </button>
         </div>
@@ -81,23 +149,22 @@ const ReferralModal: React.FC<ReferralModalProps> = ({ isOpen, onClose, user }) 
             <thead>
                 <tr>
                 <th className="text-slate-400 text-sm">Nome</th>
-                <th className="text-slate-400 text-sm">E-mail</th>
-                <th className="text-slate-400 text-sm">Status</th>
+                <th className="text-slate-400 text-sm text-right">Comissão</th>
                 </tr>
             </thead>
             <tbody>
-                {user?.referrals?.map((referral: any) => (
+                {referrals.map((referral: any) => (
                 <tr key={referral.id}>
-                    <td className="text-slate-400 text-sm">{referral.name}</td>
-                    <td className="text-slate-400 text-sm text-right">R$ {referral.amount}</td>
+                    <td className="text-slate-400 text-sm">{referral.full_name}</td>
+                    <td className="text-slate-400 text-sm text-right text-green-400">+R$ {referral.commission.toFixed(2)}</td>
                 </tr>
                 ))}
 
-                {/* {user?.referrals?.length === 0 && ( */}
+                {referrals.length === 0 && (
                 <tr>
                     <td colSpan="3" className="text-slate-400 text-sm text-center italic">Você ainda não possui nenhum indicado.</td>
                 </tr>
-                {/* )} */}
+                )}
             </tbody>
             </table>
         </div>
@@ -112,27 +179,59 @@ const ReferralModal: React.FC<ReferralModalProps> = ({ isOpen, onClose, user }) 
             <thead>
                 <tr>
                 <th className="text-slate-400 text-sm">Valor</th>
-                <th className="text-slate-400 text-sm">Status</th>
+                <th className="text-slate-400 text-sm text-right">Status</th>
                 </tr>
             </thead>
             <tbody>
-                {user?.referrals?.map((referral: any) => (
-                <tr key={referral.id}>
-                    <td className="text-slate-400 text-sm">{referral.name}</td>
-                    <td className="text-slate-400 text-sm text-right">R$ {referral.amount}</td>
+                {saques.map((saque: any) => (
+                <tr key={saque.id}>
+                    <td className="text-slate-400 text-sm">{saque.amount.toFixed(2)}</td>
+                    {saque.status === 'pending' ? (
+                      <td className="text-slate-400 text-sm text-right text-yellow-400">Pendente</td>
+                    ) : (
+                      <td className="text-slate-400 text-sm text-right text-green-400">Pago</td>
+                    )}
                 </tr>
                 ))}
 
-                {/* {user?.referrals?.length === 0 && ( */}
+                {saques.length === 0 && (
                 <tr>
                     <td colSpan="3" className="text-slate-400 text-sm text-center italic">Nenhuma solicitação de saque ainda.</td>
                 </tr>
-                {/* )} */}
+                )}
             </tbody>
             </table>
         </div>
       </div>
     </Modal>
+
+    {isConfirmOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-in fade-in zoom-in duration-200">
+            <h3 className="text-white font-bold text-lg mb-2">Confirmar Saque</h3>
+            <p className="text-slate-300 text-sm mb-6">
+              Deseja mesmo sacar o valor de <strong className="text-green-400">R$ {balance.toFixed(2)}</strong>?
+            </p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setIsConfirmOpen(false)}
+                className="flex-1 py-3 rounded-xl bg-slate-800 text-white font-bold text-xs uppercase tracking-widest hover:bg-slate-700 transition-colors border border-white/5"
+                disabled={loading}
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={confirmWithdraw}
+                className="flex-1 py-3 rounded-xl bg-green-600 text-white font-bold text-xs uppercase tracking-widest hover:bg-green-500 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-green-900/20"
+                disabled={loading}
+              >
+                {loading ? <i className="fa-solid fa-circle-notch animate-spin"></i> : 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 

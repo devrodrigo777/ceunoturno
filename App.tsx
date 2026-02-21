@@ -162,7 +162,7 @@ const App: React.FC = () => {
     currentZoom,
   });
 
-  useEffect(() => {  console.log(overlayStack);
+  useEffect(() => {
     if (isMapBlocked) stopDragging();
   }, [isMapBlocked, stopDragging]);
 
@@ -173,8 +173,6 @@ const App: React.FC = () => {
       if (refId) {
         applyReferral(refId)
       }
-
-      console.log(profile);
     }
   }, [session])
 
@@ -257,7 +255,7 @@ useEffect(() => {
       else if (msg.includes("forbidden")) toast.error("Você não é dono desse astro.");
       else toast.error(msg);
     } finally {
-      console.log(overlayStack);
+      //console.log(overlayStack);
     }
   };
 
@@ -896,6 +894,7 @@ useEffect(() => {
         isOpen={isOpen("referral")}
         onClose={() => closeTopOverlay()}
         user={session?.user}
+        balance={userBalance}
       />
     </>
   );

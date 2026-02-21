@@ -35,7 +35,7 @@ export default function PosterModal({
     //   });
     //   if (!cancelled) setDataUrl(canvas.toDataURL("image/png"));
     // })();
-    console.log("changing...");
+    //console.log("changing...");
     (async () => {
       const canvas = await renderCompassPoster(astro, {
         templateSrc: "./compass.png",
@@ -67,7 +67,7 @@ export default function PosterModal({
         markAstro: true,
     });
 
-    console.log("download!");
+    //console.log("download!");
 
     const url = canvas.toDataURL("image/png");
     const a = document.createElement("a");

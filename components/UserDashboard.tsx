@@ -23,6 +23,17 @@ const UserDashboard: React.FC<DashboardProps> = ({
   isOpen, onClose, user, profile, credits, myAstros, onAbout, onLogout, onFocusAstro, onTerms, onRecharge, onReferral
 }) => {
 
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (profile?.avatar_url) {
+      setAvatarUrl(profile.avatar_url);
+    } else if (user?.user_metadata?.avatar_url) {
+      setAvatarUrl(user.user_metadata.avatar_url);
+    }
+  }, [profile, user]);
+
+  
   // console.log(user);
   return (
     <>
@@ -38,7 +49,7 @@ const UserDashboard: React.FC<DashboardProps> = ({
           {/* Header do Perfil */}
           <div className="flex items-center gap-4 mb-8">
             <img
-              src={profile?.avatar_url || user.user_metadata.avatar_url}
+              src={avatarUrl || "./unknown.png"}
               onError={(e) => {
                 const img = e.currentTarget;
                 if (img.src !== "./unknown.png") img.src = "./unknown.png";

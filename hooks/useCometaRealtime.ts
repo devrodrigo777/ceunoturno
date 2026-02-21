@@ -49,6 +49,8 @@ export function useCometaRealtime(profile : any | null) {
   const [hasCashout, setHasCashout] = useState(false)
   const [cashoutAmount, setCashoutAmount] = useState(0)
   const lastStatusRef = useRef<string | null>(null);
+  const fakeBetSessionRef = useRef(0);
+  const timeOutQueue = useRef<NodeJS.Timeout[]>([]);
 
   useEffect(() => {
     setActiveBet(null)
@@ -111,7 +113,7 @@ export function useCometaRealtime(profile : any | null) {
         setGame(payload.new as CometaGame)
       })
       .subscribe((status) => {
-        console.log('✅ Channel:', status)
+        //console.log('✅ Channel:', status)
         if (status === 'SUBSCRIBED') setIsLoading(false)
       })
 
@@ -164,7 +166,7 @@ export function useCometaRealtime(profile : any | null) {
       }
     )
     .subscribe((status) => {
-        console.log('✅ Channel das Bets:', status)
+        //console.log('✅ Channel das Bets:', status)
         
       })
 
@@ -172,12 +174,29 @@ export function useCometaRealtime(profile : any | null) {
 }, [game?.id, profile?.id]);
 
   
+  //  Prevenção de bugs: as vezes quando fica muito tempo inativo, o canal de realtime pode falhar em receber updates. Esse efeito tenta re-sincronizar a aposta atual a cada 30s, para evitar que o usuário fique "desatualizado" sem perceber.
+  useEffect(() => {
+    if (!profile?.id || !game?.id) return;
+    // console.log("Iniciando monitoramento de aposta ativa...");
+    const interval = setInterval(() => {
+      // console.log("Re-sincronizando aposta ativa...");
+      setActiveBet(null);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [profile?.id, game?.id]);
 
   // ⚡ limpa apostas quando novo jogo começa em betting
   useEffect(() => {
     if (!game || !profile?.id) return;
+    
 
     if (game.status === 'flying') {
+
+      //console.log("limpa fila porra!");
+      //console.log(timeOutQueue.current);
+      timeOutQueue.current.forEach(timeout => clearTimeout(timeout));
+      timeOutQueue.current = [];
+
       const interval = setInterval(() => {
       setBets(prev => {
         return prev.filter(bet => {
@@ -197,11 +216,12 @@ export function useCometaRealtime(profile : any | null) {
           return true;
         });
       });
-    }, random(120, 260)); // intervalo irregular
+    }, random(120, 290)); // intervalo irregular
 
     return () => clearInterval(interval);
     }
-
+    
+    
     if (game.status === 'betting' && lastStatusRef.current !== 'betting') {
       // novo jogo, zera as apostas
       setBets([]);
@@ -209,11 +229,14 @@ export function useCometaRealtime(profile : any | null) {
       setHasCashout(false);
       setCashoutAmount(0);
       
-      const total = Math.floor(Math.random() * 9) + 17; // 17–25
+
+      
+      const total = Math.floor(Math.random() * 15) + 40; // 17–25
       let inserted = 0;
 
-      function scheduleNext() {
+      function scheduleNext(lastStatus: string) {
         if (inserted >= total) return;
+        if (lastStatus === 'flying') return;
 
         const fakeBet = {
           id: `fake-${Date.now()}-${inserted}`,
@@ -224,6 +247,7 @@ export function useCometaRealtime(profile : any | null) {
           game_id: game.id
         };
 
+        
         setBets(prev => [...prev, fakeBet]);
         inserted++;
 
@@ -232,11 +256,11 @@ export function useCometaRealtime(profile : any | null) {
 
         if (inserted < total * 0.4) {
           // início acelerado
-          delay = random(80, 180);
+          delay = random(100, 210);
         } else if (inserted < total * 0.7) {
-          delay = random(200, 450);
+          delay = random(230, 770);
         } else {
-          delay = random(300, 800);
+          delay = random(300, 1800);
         }
 
         // chance de burst (entradas juntas)
@@ -244,10 +268,12 @@ export function useCometaRealtime(profile : any | null) {
           delay = random(40, 90);
         }
 
-        setTimeout(scheduleNext, delay);
+        timeOutQueue.current.push(setTimeout(scheduleNext, delay, lastStatus));
+        // setTimeout(scheduleNext, delay);
       }
 
-      scheduleNext();
+
+      scheduleNext(game.status || 'flying'); // inicia a cadeia de apostas fake
 
     }
 
@@ -282,7 +308,11 @@ export function useCometaRealtime(profile : any | null) {
   // }, [profile?.id])
 
   const cashout = useCallback(async () => {
-    if (!profile?.id) return;
+    if (!profile?.id){
+      //console.log("não há profile! deslogado.");
+      //console.log(profile);
+      return;
+    };
     try {
       const { data: { session } } = await supabase.auth.getSession()
 
@@ -316,7 +346,7 @@ export function useCometaRealtime(profile : any | null) {
     } catch (err: any) {
       toast.error(err.message)
     }
-  }, [])
+  }, [profile?.id])
 
   // Apostas - FIX user_id
   const placeBet = useCallback(async (amount: number) => {

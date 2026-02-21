@@ -72,7 +72,7 @@ useEffect(() => {
         },
         (payload) => {
           // Quando o banco mudar (pela RPC ou admin), o estado muda na hora
-          console.log("Profile atualizado: ", payload.new);
+          //console.log("Profile atualizado: ", payload.new);
           setUser((prevUser) => ({
             ...prevUser,
             balance: payload.new.credits,

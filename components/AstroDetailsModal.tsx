@@ -54,7 +54,7 @@ const min_fontSize = 18;
 const max_fontSize = 24;
 
 useEffect(() => {
-  console.log(selectedAstro?.message?.length);
+  //console.log(selectedAstro?.message?.length);
   if (selectedAstro?.message?.length < 30) {
     setFontSize(max_fontSize);
   } else {
