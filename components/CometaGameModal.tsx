@@ -367,7 +367,7 @@ export function CometaGameModal({
                       <>
                       {isCashing
                       ? "Sacando..."
-                      : `REIVINDICAR R$ ${formatBRL(
+                      : `REIVINDICAR ${formatBRL(
                           betAmount * myMultiplier
                         )}`}
                       </>
