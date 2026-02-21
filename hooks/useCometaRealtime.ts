@@ -2,6 +2,7 @@ import { supabase } from '../services/supabaseClient'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
 
+
 export interface CometaGame {
   id: string
   status: 'betting' | 'flying' | 'crashed'
@@ -41,7 +42,7 @@ function generateCashoutTarget() {
   return null; // 10% nunca saem (perdem)
 }
 
-export function useCometaRealtime(profile : any | null) {
+export function useCometaRealtime(profile : any | null, setBetAmount?: any) {
   const [game, setGame] = useState<CometaGame | null>(null)
   const [activeBet, setActiveBet] = useState<any>(null)
   const [bets, setBets] = useState<any[]>([])
@@ -89,6 +90,9 @@ export function useCometaRealtime(profile : any | null) {
         .maybeSingle()
 
       setActiveBet(data ?? null)
+      if (data) {
+        if (setBetAmount) setBetAmount(data.bet_amount);
+      }
     }
 
     fetchBet()
@@ -160,6 +164,7 @@ export function useCometaRealtime(profile : any | null) {
         // Atualiza a aposta do usuário logado, independente de quem fez o evento
         if (newBet && newBet.user_id === profile.id) {
           setActiveBet(newBet);
+          if (setBetAmount) setBetAmount(newBet.bet_amount);
         } else if (oldBet && oldBet.user_id === profile.id && payload.eventType === 'DELETE') {
           setActiveBet(null);
         }

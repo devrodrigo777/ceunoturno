@@ -606,11 +606,13 @@ useEffect(() => {
   }, [astros]);
 
   // const { game, activeBet, bets, cashout, hasCashout, cashoutAmount } = useCometaRealtime(profile);
-  const { game, activeBet, bets, cashout, hasCashout, cashoutAmount } =
-  useCometaRealtime(session ? profile : null)
-
   const [currentMultiplier, setCurrentMultiplier] = useState(1.0)
   const [betAmount, setBetAmount] = useState(0);
+
+  const { game, activeBet, bets, cashout, hasCashout, cashoutAmount } =
+  useCometaRealtime(session ? profile : null, setBetAmount)
+
+  
 
   const placeBet = async (amount: number) => {
     try {
