@@ -310,7 +310,7 @@ const RechargeModal: React.FC<Props> = ({
               <>
                 {!resp && (
                   <>
-                    <p className="text-slate-400 text-sm">
+                    <p className="text-slate-400 text-sm text-center">
                       Selecione um valor e gere o Pix para recarregar suas Energias
                       Estelares.
                     </p>
@@ -377,6 +377,10 @@ const RechargeModal: React.FC<Props> = ({
                         ? "Gerando Pix..."
                         : `Gerar Pix (R$ ${amountBRL.toString().replace(".", ",")})`}
                     </button>
+
+                    <p className="text-yellow-400 text-sm text-center italic">
+                      Bônus: ganhe R$ {((amountCents/2)/100).toFixed(2).toString().replace(".", ",")} em saldo para participar das decolagens cósmicas e multiplicar seu saldo em até 50x!
+                    </p>
 
                     <div
                       style={{
