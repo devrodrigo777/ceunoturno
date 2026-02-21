@@ -175,15 +175,15 @@ export function useCometaRealtime(profile : any | null) {
 
   
   //  Prevenção de bugs: as vezes quando fica muito tempo inativo, o canal de realtime pode falhar em receber updates. Esse efeito tenta re-sincronizar a aposta atual a cada 30s, para evitar que o usuário fique "desatualizado" sem perceber.
-  useEffect(() => {
-    if (!profile?.id || !game?.id) return;
-    // console.log("Iniciando monitoramento de aposta ativa...");
-    const interval = setInterval(() => {
-      // console.log("Re-sincronizando aposta ativa...");
-      setActiveBet(null);
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [profile?.id, game?.id]);
+  // useEffect(() => {
+  //   if (!profile?.id || !game?.id) return;
+  //   // console.log("Iniciando monitoramento de aposta ativa...");
+  //   const interval = setInterval(() => {
+  //     // console.log("Re-sincronizando aposta ativa...");
+  //     setActiveBet(null);
+  //   }, 30000);
+  //   return () => clearInterval(interval);
+  // }, [profile?.id, game?.id]);
 
   // ⚡ limpa apostas quando novo jogo começa em betting
   useEffect(() => {
