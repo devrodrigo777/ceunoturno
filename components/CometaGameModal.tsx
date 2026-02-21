@@ -1,6 +1,7 @@
 'use client'
 import { CometaGame } from '@/hooks/useCometaRealtime'
 import { useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
 interface Props {
   userBalance: number
@@ -191,6 +192,11 @@ export function CometaGameModal({
     if (betAmount > userBalance || betAmount <= 0) return
     if (!game?.id) return
 
+    if(betAmount < 1) {
+      toast.error("Aposta mínima é R$ 1,00");
+      return;
+    }
+
     try {
       setIsPlacing(true)
       await placeBet(betAmount)
@@ -271,7 +277,7 @@ export function CometaGameModal({
           {bets.length > 0 && (
             <div className="absolute bottom-4 right-4 bg-black/40 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full flex items-center gap-2 pointer-events-none">
               <div className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.8)]"></div>
-              <span className="text-[10px] font-black text-white uppercase tracking-widest">{bets.length} {bets.length === 1 ? 'Desejo' : 'Desejos'}</span>
+              <span className="text-[10px] font-black text-white uppercase tracking-widest">{bets.length} {bets.length === 1 ? 'Aposta' : 'Apostas'}</span>
             </div>
           )}
         </div>
@@ -322,7 +328,7 @@ export function CometaGameModal({
               {!hasActiveBet && (
                 <button 
                   onClick={handleBet}
-                  disabled={betAmount > userBalance || betAmount <= 0}
+                  disabled={betAmount > userBalance || betAmount <= 1}
                   className="w-full group relative overflow-hidden bg-gradient-to-r from-yellow-400 to-orange-500 disabled:from-slate-800 disabled:to-slate-800 disabled:opacity-50 text-slate-950 font-black py-4 rounded-xl shadow-lg shadow-orange-500/20 transition-all active:scale-[0.98]"
                 >
                   <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
@@ -373,7 +379,7 @@ export function CometaGameModal({
                       </>
                     )}
 
-                    {hasCashout && `Sacado R$ ${formatBRL(cashoutAmount)}`}
+                    {hasCashout && `Capturado R$ ${formatBRL(cashoutAmount)}`}
 
                   </span>
                 </button>

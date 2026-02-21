@@ -344,7 +344,7 @@ export function useCometaRealtime(profile : any | null, setBetAmount?: any) {
         return
       }
 
-      toast.success(`🚀 Sacado R$ ${(data.amount)}`);
+      toast.success(`🚀 Capturado R$ ${(data.amount)}`);
       setHasCashout(true)
       setCashoutAmount(data.amount)
       
