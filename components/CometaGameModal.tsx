@@ -379,7 +379,7 @@ export function CometaGameModal({
                       </>
                     )}
 
-                    {hasCashout && `Capturado R$ ${formatBRL(cashoutAmount)}`}
+                    {hasCashout && `Capturado ${formatBRL(cashoutAmount)}`}
 
                   </span>
                 </button>
