@@ -348,7 +348,7 @@ export function CometaGameModal({
               
             </div>
           ) : game.status === 'flying' ? (
-            <div className="py-2 space-y-4 text-center animate-in zoom-in-95 duration-300">
+            <div className="py-2 space-y-4 text-center animate-in zoom-in-95 duration-300 pointer-events-none">
               <div className="inline-flex flex-col items-center justify-center">
                   <div className="text-xs font-black text-green-400 uppercase tracking-[0.3em] mb-2 animate-pulse">Cometa em Ascensão</div>
                   <div className="text-5xl font-black text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]">
