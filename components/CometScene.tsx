@@ -30,6 +30,7 @@ const CometScene: React.FC<CometSceneProps> = ({ state, cometSpeed }) => {
     if (state === 'betting') {
         cometStateRef.current = 'none';
         shakeIntensityRef.current = 0; // Reset to base shake
+        cometXRef.current = -100; // Reset comet position
     }
 
     if (state === 'flying') {
