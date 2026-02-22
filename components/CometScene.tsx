@@ -343,7 +343,8 @@ const CometScene: React.FC<CometSceneProps> = ({ state, cometSpeed }) => {
   return (
     <canvas
       ref={canvasRef}
-      className="w-full h-full block bg-black"
+      className="block bg-black"
+      style={{ width: '102%', height: '102%', marginLeft: '-1%', marginTop: '-1%' }}
     />
   );
 };

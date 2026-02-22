@@ -67,12 +67,30 @@ export function CometaGameModal({
     bgMusic.current.volume = 0.1;
     clickSound.current.volume = 0.3;
 
+    const handleVisibility = () => {
+      if (document.hidden) {
+        bgMusic.current?.pause();
+        collectAudio.current?.pause();
+        finishedRound.current?.pause();
+        clickSound.current?.pause();
+        cashoutSound.current?.pause();
+      } else {
+        if(!isMuted && game?.status === 'betting') {
+          bgMusic.current?.play();
+        }
+        // bgMusic.current?.play();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+
       return () => {
         bgMusic.current?.pause();
         collectAudio.current?.pause();
         finishedRound.current?.pause();
         clickSound.current?.pause();
         cashoutSound.current?.pause();
+        document.removeEventListener('visibilitychange', handleVisibility);
       };  
     
   }, []);
