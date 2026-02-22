@@ -53,8 +53,8 @@ const CometScene: React.FC<CometSceneProps> = ({ state, cometSpeed }) => {
     const parent = canvas.parentElement;
     if (!parent) return;
 
-    let width = parent.clientWidth-1;
-    let height = parent.clientHeight-1;
+    let width = canvas.clientWidth;//parent.clientWidth-1;
+    let height = canvas.clientHeight;//parent.clientHeight-1;
 
     // Configuration
     const starCount = 200;
