@@ -91,6 +91,12 @@ export function CometaGameModal({
         clickSound.current?.pause();
         cashoutSound.current?.pause();
         document.removeEventListener('visibilitychange', handleVisibility);
+
+        bgMusic.current = null;
+        collectAudio.current = null;
+        finishedRound.current = null;
+        clickSound.current = null;
+        cashoutSound.current = null;
       };  
     
   }, []);
