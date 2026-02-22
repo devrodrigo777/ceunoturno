@@ -69,6 +69,10 @@ export function CometaGameModal({
 
       return () => {
         bgMusic.current?.pause();
+        collectAudio.current?.pause();
+        finishedRound.current?.pause();
+        clickSound.current?.pause();
+        cashoutSound.current?.pause();
       };  
     
   }, []);
