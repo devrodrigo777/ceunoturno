@@ -28,9 +28,9 @@ function randomFloat(min: number, max: number) {
 function generateHumanAmount() {
   const r = Math.random();
 
-  if (r < 0.5) return randomFloat(5, 30);       // maioria aposta baixo
-  if (r < 0.85) return randomFloat(30, 120);   // médio
-  return randomFloat(120, 500);                // poucos grandes
+  if (r < 0.5) return randomFloat(2, 30);       // maioria aposta baixo
+  if (r < 0.85) return randomFloat(30, 80);   // médio
+  return randomFloat(80, 400);                // poucos grandes
 }
 
 function generateCashoutTarget() {
@@ -52,6 +52,33 @@ export function useCometaRealtime(profile : any | null, setBetAmount?: any) {
   const lastStatusRef = useRef<string | null>(null);
   const fakeBetSessionRef = useRef(0);
   const timeOutQueue = useRef<NodeJS.Timeout[]>([]);
+  const [cashoutEffects, setCashoutEffects] = useState<
+    { id: string; amount: number }[]
+  >([]);
+  const processedCashouts = useRef<Set<string>>(new Set());
+
+  const generateCashoutEffect = (bet: any, amount: number) => {
+
+    // efeito visual de cashout
+    const effectId = bet.id + '-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+
+    if (processedCashouts.current.has(bet.id)) return;
+    processedCashouts.current.add(bet.id);
+    console.log(">>> Gerando efeito de cashout para aposta", bet.id, "com valor", amount);
+
+
+
+    setCashoutEffects(prev => [
+      ...prev,
+      { id: effectId, amount: amount }
+    ]);
+
+    setTimeout(() => {
+      setCashoutEffects(prev =>
+        prev.filter(effect => effect.id !== effectId)
+      );
+    }, 1500);
+  }
 
   useEffect(() => {
     setActiveBet(null)
@@ -150,6 +177,9 @@ export function useCometaRealtime(profile : any | null, setBetAmount?: any) {
             }
           } else if (payload.eventType === 'UPDATE' && newBet) {
             if (newBet.cashout_multiplier != null || newBet.won_amount > 0) {
+              
+              generateCashoutEffect(newBet, newBet.won_amount);
+
               updated = updated.filter((b) => b.id !== newBet.id);
             } else {
               updated = updated.map((b) => (b.id === newBet.id ? newBet : b));
@@ -214,6 +244,7 @@ export function useCometaRealtime(profile : any | null, setBetAmount?: any) {
           if (game.multiplier >= bet.cashoutAt) {
             // chance de micro atraso humano
             if (Math.random() < 0.7) {
+              generateCashoutEffect(bet, bet.bet_amount * bet.cashoutAt);
               return false;
             }
           }
@@ -369,5 +400,5 @@ export function useCometaRealtime(profile : any | null, setBetAmount?: any) {
     toast.success(`✅ Aposta realizada!`)
   }, [profile?.id])
 
-  return { game, isLoading, placeBet, activeBet, bets, cashout, hasCashout, cashoutAmount }
+  return { game, isLoading, placeBet, activeBet, bets, cashout, hasCashout, cashoutAmount, cashoutEffects };
 }

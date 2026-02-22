@@ -2,6 +2,7 @@
 import { CometaGame } from '@/hooks/useCometaRealtime'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import CometScene from './CometScene'
 
 interface Props {
   userBalance: number
@@ -17,6 +18,7 @@ interface Props {
   hasCashout: boolean,
   cashoutAmount: number
   bets: any[]
+  cashoutEffects: { id: string; amount: number }[]
 }
 
 export function CometaGameModal({
@@ -32,7 +34,8 @@ export function CometaGameModal({
   cashout,
   hasCashout,
   cashoutAmount,
-  bets
+  bets,
+  cashoutEffects
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [particles, setParticles] = useState<{x:number,y:number,size:number,alpha:number}[]>([])
@@ -41,24 +44,96 @@ export function CometaGameModal({
   const [isCashing, setIsCashing] = useState(false)
   const [myMultiplier, setMyMultiplier] = useState(1.00);
   const [isBetting, setIsBetting] = useState(false);
+
+  const collectAudio = useRef<HTMLAudioElement | null>(null);
+  const finishedRound = useRef<HTMLAudioElement | null>(null);
+  const bgMusic = useRef<HTMLAudioElement | null>(null);
+  const clickSound = useRef<HTMLAudioElement | null>(null);
+  const cashoutSound = useRef<HTMLAudioElement | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [currentState, setCurrentState] = useState<'none' | 'entering' | 'cruising' | 'exploding' | 'gone'>('none');
+
+  useEffect(() => {
+    collectAudio.current = new Audio('/sounds/money_collect1.mp3');
+    finishedRound.current = new Audio('/sounds/finished_round.mp3');
+    clickSound.current = new Audio('/sounds/click.mp3');
+    cashoutSound.current = new Audio('/sounds/cashout.mp3');
+    bgMusic.current = new Audio('/sounds/bgmusic.mp3');
+    bgMusic.current.loop = true;
+    
+    collectAudio.current.volume = 0.3; // Ajuste o volume conforme necessário
+    cashoutSound.current.volume = 0.3;  
+    finishedRound.current.volume = 0.2;
+    bgMusic.current.volume = 0.1;
+    clickSound.current.volume = 0.3;
+
+      return () => {
+        bgMusic.current?.pause();
+      };  
+    
+  }, []);
   
 
   const bgRef = useRef<HTMLImageElement | null>(null)
+  const renderedEffects = useRef(new Set<string>());
+  const [cometSpeedMultiplier, setCometSpeedMultiplier] = useState(1);
 
+  useEffect(() => {
+    if (myMultiplier > 1) {
+      if(myMultiplier >= 12) {
+        setCometSpeedMultiplier(12);
+      } else {
+        setCometSpeedMultiplier(myMultiplier);
+      }
+    } else {
+      setCometSpeedMultiplier(1);
+    }
+  }, [myMultiplier]);
+
+  useEffect(() => {
+    if(!game) return;
+
+    switch(game.status) {
+      case 'betting':
+        setCurrentState('none');
+        break;
+      case 'flying':
+        setCurrentState('entering');
+        break;
+      case 'crashed':
+        setCurrentState('exploding');
+        break;
+    }
+
+
+    if (isMuted) {
+      bgMusic?.current?.pause();
+    } else {
+      if(game.status === 'betting') {
+        bgMusic.current.currentTime = 0;
+        bgMusic?.current?.play();
+      }
+    }
+  }, [game?.status, isMuted]);
 
   // Sempre atualizar o myMultiplier conforme o currentMultiplier, exceto quando crashar. Aí ele assume o game.multiplier final.
   useEffect(() => {
     if (!game) return
 
     if (game.status === 'flying') {
-      setMyMultiplier(currentMultiplier)
+      setMyMultiplier(currentMultiplier);
     } else if (game.status === 'crashed') {
       
+      // play audio
+      bgMusic?.current?.pause();
+      finishedRound.current?.play();
+
       setMyMultiplier(game.multiplier || 1)
       setIsBetting(false)
+    
       
     }
-  });
+  }, [currentMultiplier, game?.status]);
 
   // Carrega imagem de fundo
   useEffect(() => {
@@ -243,81 +318,163 @@ export function CometaGameModal({
   if (!game) return null
 
   return (
-    <div className={`fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4 ${isOpen ? 'block' : 'hidden'}`}>
+    <div
+      className={`fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4 ${isOpen ? "block" : "hidden"}`}
+    >
       <div className="bg-slate-900 border border-white/10 rounded-3xl w-full max-w-md max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
-        
         {/* Header */}
         <div className="p-4 border-b border-white/5 flex flex-col gap-4 bg-slate-900/80 backdrop-blur-sm z-10">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${game.status === 'flying' ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`}></div>
-                <h2 className="text-lg font-black text-white uppercase tracking-widest">Sorte no Cometa</h2>
+              <h2 className="text-lg font-black text-white uppercase tracking-widest">
+                <i className="fa-solid fa-meteor"></i> Cometa da Sorte
+              </h2>
             </div>
-            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors">✕</button>
+            <div className="flex items-center gap-2">
+              {/* Button for muting music */}
+              <button
+                onClick={() => {
+                  clickSound.current?.play();
+                  if (bgMusic.current?.paused) {
+                    bgMusic.current?.play();
+                    setIsMuted(false);
+                  } else {
+                    bgMusic.current?.pause();
+                    setIsMuted(true);
+                  }
+                }}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+              >
+                <i
+                  className={`fa-solid ${isMuted ? "fa-volume-xmark" : "fa-volume-high"}`}
+                ></i>
+              </button>
+              <button
+                onClick={onClose}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+              >
+                ✕
+              </button>
+            </div>
           </div>
 
-          <div className="flex justify-center items-end">
+          {/* <div className="flex justify-center items-end">
             <div className="text-center">
-                {game.status === 'betting' && (
-                    <div className="inline-block bg-white/10 px-2 py-1 rounded-md">
-                        <span className="text-xs font-mono text-white font-bold">
-                            Novo cometa irá surgir em <span className="text-yellow-400">{Math.floor(displayTimeLeft)}s</span>
-                        </span>
-                    </div>
-                )}
+              {game.status === "betting" && (
+                <div className="inline-block bg-white/10 px-2 py-1 rounded-md">
+                  <span className="text-xs font-mono text-white font-bold">
+                    Novo cometa irá surgir em{" "}
+                    <span className="text-yellow-400">
+                      {Math.floor(displayTimeLeft)}s
+                    </span>
+                  </span>
+                </div>
+              )}
             </div>
-          </div>
+          </div> */}
         </div>
 
         {/* Canvas Area */}
         <div className="relative flex-1 min-h-[300px] bg-slate-950">
-          <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+          {isOpen && ( 
+            <div className="absolute inset-0 w-full h-full">
+              <CometScene state={game.status} cometSpeed={5+((game.status == 'flying' || game.status == 'crashed') ? cometSpeedMultiplier : 1)} />
+            </div>
+          )}
+
+          {game.status === "betting" && (
+            <div className="absolute inset-0 w-full h-full flex items-center justify-center">
+              <div className="text-center">
+                <div className="inline-block bg-white/10 px-2 py-1 rounded-md">
+                  <span className="text-xs font-mono text-white font-bold">
+                    Novo cometa irá surgir em{" "}
+                    <span className="text-yellow-400">
+                      {Math.floor(displayTimeLeft)}s
+                    </span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" /> */}
           
+
           {/* Badge de Desejos */}
           {bets.length > 0 && (
             <div className="absolute bottom-4 right-4 bg-black/40 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full flex items-center gap-2 pointer-events-none">
               <div className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.8)]"></div>
-              <span className="text-[10px] font-black text-white uppercase tracking-widest">{bets.length} {bets.length === 1 ? 'Aposta' : 'Apostas'}</span>
+              <span className="text-[10px] font-black text-white uppercase tracking-widest">
+                {bets.length}{" "}
+                {bets.length === 1 ? "Aposta Ativa" : "Apostas Ativas"}
+              </span>
             </div>
           )}
+
+          {/* Cashout Effects */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            {cashoutEffects.map((effect, index) => {
+              // play audio effect
+              collectAudio.current?.play();
+
+              return (
+                <div
+                  key={effect.id}
+                  className="absolute bottom-8 right-8 animate-cashout text-green-400 font-black text-sm drop-shadow-[0_0_10px_rgba(74,222,128,0.8)]"
+                  style={{
+                    transform: `translateY(0px)`,
+                  }}
+                >
+                  + {formatBRL(effect.amount)}
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Controls */}
         <div className="p-5 bg-slate-900 border-t border-white/10">
-          {game.status === 'betting' ? (
+          {game.status === "betting" ? (
             <div className="space-y-4 animate-in slide-in-from-bottom-4 fade-in duration-300">
               <div className="flex items-center justify-between text-xs font-bold text-slate-400 uppercase tracking-wider">
-                 <span>Sua Aposta</span>
-                 <span>Saldo: <span className="text-yellow-400">{formatBRL(userBalance)}</span></span>
+                <span>Sua Aposta</span>
+                <span>
+                  Saldo:{" "}
+                  <span className="text-yellow-400">
+                    {formatBRL(userBalance)}
+                  </span>
+                </span>
               </div>
 
               <div className="flex gap-2">
                 <div className="relative flex-1">
-                    <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-                        <i className="fa-solid fa-bolt text-yellow-400 text-xs"></i>
-                    </div>
-                    <input 
+                  <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                    <i className="fa-solid fa-bolt text-yellow-400 text-xs"></i>
+                  </div>
+                  <input
                     type="text"
                     disabled={isBetting}
                     inputMode="numeric"
                     value={formatBRL(betAmount)}
                     onChange={handleAmountChange}
                     className="w-full bg-slate-950 border border-white/10 rounded-xl py-3 pl-8 pr-3 text-white font-mono font-bold focus:ring-2 focus:ring-yellow-400/50 outline-none transition-all"
-                    />
+                  />
                 </div>
-                <button 
-                    onClick={() => setBetAmount(Math.floor(userBalance))}
-                    className="px-4 bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl border border-white/10 transition-colors"
+                <button
+                  onClick={() => setBetAmount(Math.floor(userBalance))}
+                  className="px-4 bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl border border-white/10 transition-colors"
                 >
-                    Max
+                  Max
                 </button>
               </div>
 
               <div className="grid grid-cols-4 gap-2">
-                {[2, 5, 20, 50].map(n=>(
-                  <button 
+                {[2, 5, 20, 50].map((n) => (
+                  <button
                     key={n}
-                    onClick={()=>setBetAmount(n)}
+                    onClick={() => {
+                      clickSound.current?.play();
+                      setBetAmount(n);
+                    }}
                     className="bg-slate-800/50 hover:bg-slate-700 text-slate-300 hover:text-white font-bold py-2 rounded-lg text-xs border border-white/5 transition-all"
                   >
                     +{formatBRL(n)}
@@ -326,61 +483,78 @@ export function CometaGameModal({
               </div>
 
               {!hasActiveBet && (
-                <button 
-                  onClick={handleBet}
+                <button
+                  onClick={() => {
+                    clickSound.current?.play();
+                    handleBet();
+                  }}
                   disabled={betAmount > userBalance || betAmount <= 1}
                   className="w-full group relative overflow-hidden bg-gradient-to-r from-yellow-400 to-orange-500 disabled:from-slate-800 disabled:to-slate-800 disabled:opacity-50 text-slate-950 font-black py-4 rounded-xl shadow-lg shadow-orange-500/20 transition-all active:scale-[0.98]"
                 >
                   <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
                   <span className="relative flex items-center justify-center gap-2 uppercase tracking-widest text-sm">
-                      {isPlacing ? `Processando...` : (
-                        <>FAZER APOSTA <i className="fa-solid fa-rocket"></i></>
-                      )}
+                    {isPlacing ? (
+                      `Processando...`
+                    ) : (
+                      <>
+                        FAZER APOSTA <i className="fa-solid fa-rocket"></i>
+                      </>
+                    )}
                   </span>
                 </button>
               )}
 
               {hasActiveBet && (
-                <button 
+                <button
                   disabled={hasActiveBet}
                   className="w-full group relative overflow-hidden bg-gradient-to-r from-green-400 to-emerald-500 disabled:from-slate-800 disabled:to-slate-800 disabled:opacity-50 text-slate-100 font-black py-4 rounded-xl shadow-lg shadow-green-500/20 transition-all active:scale-[0.98]"
                 >
                   <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
                   <span className="relative flex items-center justify-center gap-2 uppercase tracking-widest text-sm">
-                      APOSTANDO {formatBRL(betAmount)}
+                    APOSTANDO {formatBRL(betAmount)}
                   </span>
                 </button>
               )}
-              
             </div>
-          ) : game.status === 'flying' ? (
+          ) : game.status === "flying" ? (
             <div className="py-2 space-y-4 text-center animate-in zoom-in-95 duration-300">
               <div className="inline-flex flex-col items-center justify-center pointer-events-none">
-                  <div className="text-xs font-black text-green-400 uppercase tracking-[0.3em] mb-2 animate-pulse">Cometa em Ascensão</div>
-                  <div className="text-5xl font-black text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]">
-                    {myMultiplier.toFixed(2)}x
-                  </div>
+                <div className="text-xs font-black text-green-400 uppercase tracking-[0.3em] mb-2 animate-pulse">
+                  <span
+                    className={`inline-block w-2 h-2 rounded-full ${game.status === "flying" ? "bg-green-400 animate-pulse" : "bg-yellow-400"}`}
+                  ></span>{" "}
+                  Cometa em Ascensão
+                </div>
+                <div className="text-5xl font-black text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]">
+                  {myMultiplier < 55 && (
+                    <>
+                      <i className="fa-solid fa-meteor text-4xl"></i>{" "}
+                      {myMultiplier.toFixed(2)}x
+                    </>
+                  )}
+
+                  {myMultiplier >= 55 && <>Conectando...</>}
+                </div>
               </div>
-              
+
               {hasActiveBet ? (
                 <button
-                  onClick={handleCashout}
+                  onClick={() => { cashoutSound.current?.play(); handleCashout(); }}
                   disabled={isCashing || hasCashout}
                   className="w-full group relative overflow-hidden bg-gradient-to-r from-green-400 to-emerald-500 disabled:opacity-50 text-slate-950 font-black py-4 rounded-xl shadow-lg transition-all active:scale-[0.98]"
                 >
                   <span className="relative flex items-center justify-center gap-2 uppercase tracking-widest text-sm">
                     {!hasCashout && (
                       <>
-                      {isCashing
-                      ? "Sacando..."
-                      : `REIVINDICAR ${formatBRL(
-                          betAmount * myMultiplier
-                        )}`}
+                        {isCashing
+                          ? "Sacando..."
+                          : `REIVINDICAR ${formatBRL(
+                              betAmount * myMultiplier,
+                            )}`}
                       </>
                     )}
 
                     {hasCashout && `Capturado ${formatBRL(cashoutAmount)}`}
-
                   </span>
                 </button>
               ) : (
@@ -394,11 +568,13 @@ export function CometaGameModal({
             </div>
           ) : (
             <div className="py-2 space-y-4 text-center animate-in shake duration-300">
-               <div className="inline-flex flex-col items-center justify-center">
-                  <div className="text-xs font-black text-red-500 uppercase tracking-[0.3em] mb-2">O Cometa Explodiu</div>
-                  <div className="text-5xl font-black text-red-500 drop-shadow-[0_0_25px_rgba(239,68,68,0.6)]">
-                    {myMultiplier.toFixed(2)}x
-                  </div>
+              <div className="inline-flex flex-col items-center justify-center">
+                <div className="text-xs font-black text-red-500 uppercase tracking-[0.3em] mb-2">
+                  O Cometa Explodiu
+                </div>
+                <div className="text-5xl font-black text-red-500 drop-shadow-[0_0_25px_rgba(239,68,68,0.6)]">
+                  {myMultiplier.toFixed(2)}x
+                </div>
               </div>
 
               {/* <button 
@@ -412,5 +588,5 @@ export function CometaGameModal({
         </div>
       </div>
     </div>
-  )
+  );
 }

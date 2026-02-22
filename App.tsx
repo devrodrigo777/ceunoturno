@@ -609,7 +609,7 @@ useEffect(() => {
   const [currentMultiplier, setCurrentMultiplier] = useState(1.0)
   const [betAmount, setBetAmount] = useState(0);
 
-  const { game, activeBet, bets, cashout, hasCashout, cashoutAmount } =
+  const { game, activeBet, bets, cashout, hasCashout, cashoutAmount, cashoutEffects } =
   useCometaRealtime(session ? profile : null, setBetAmount)
 
   
@@ -726,6 +726,7 @@ useEffect(() => {
             hasActiveBet={activeBet}
             hasCashout={hasCashout}
             cashoutAmount={cashoutAmount}
+            cashoutEffects={cashoutEffects}
 
 
 
